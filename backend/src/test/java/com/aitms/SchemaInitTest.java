@@ -24,7 +24,7 @@ class SchemaInitTest {
     void 모든_테이블이_생성된다() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'", Integer.class);
-        assertThat(count).isEqualTo(13);
+        assertThat(count).isEqualTo(14);
     }
 
     @Test
@@ -40,7 +40,7 @@ class SchemaInitTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_member", Integer.class)).isEqualTo(5);
 
         assertThat(jdbc.queryForObject("SELECT result FROM test_execution WHERE id = 7", String.class)).isEqualTo("PASS");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM test_case", Integer.class)).isEqualTo(11);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM test_case", Integer.class)).isEqualTo(13);
 
         jdbc.update("INSERT INTO users (login_id, name, role) VALUES ('new01', '신규', 'DEV')");
         Long newId = jdbc.queryForObject("SELECT id FROM users WHERE login_id = 'new01'", Long.class);

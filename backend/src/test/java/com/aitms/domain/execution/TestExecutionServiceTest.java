@@ -53,7 +53,7 @@ class TestExecutionServiceTest {
     }
 
     private Long createTc(String title, TestCaseStatus status) {
-        return testCaseService.create(new TestCaseRequest(title, null, null, Priority.MEDIUM, status, null, null, null, List.of())).getId();
+        return testCaseService.create(new TestCaseRequest(PROJECT, null, title, null, null, Priority.MEDIUM, status, null, null, null, List.of())).getId();
     }
 
     private TestCycle createCycle(String name) {
@@ -136,9 +136,10 @@ class TestExecutionServiceTest {
     }
 
     @Test
-    void 검토_승인되지_않은_AI추천_TC는_차수에_등록되지_않는다() {
+    void 미승인_TC와_다른_프로젝트_TC는_차수에_등록되지_않는다() {
         TestCycle cycle = createCycle("1차");
-        // 샘플 TC 7(DRAFT), 11(REJECTED)
-        assertThat(executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(7L, 11L, tc1), null))).isEqualTo(1);
+        jdbc.update("UPDATE test_case SET review_status = 'DRAFT' WHERE id = ?", tc2);
+        // tc2(DRAFT), 샘플 TC 1(다른 프로젝트 소유) 제외
+        assertThat(executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1, tc2, 1L), null))).isEqualTo(1);
     }
 }

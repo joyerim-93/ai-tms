@@ -9,8 +9,12 @@
                r.id           AS requirement_id,
                r.req_code,
                op.name        AS origin_project_name,
-               rv.name        AS reviewed_by_name
+               rv.name        AS reviewed_by_name,
+               p.name         AS project_name,
+               f.name         AS folder_name
           FROM test_case tc
+          JOIN project p                  ON p.id = tc.project_id
+          LEFT JOIN test_case_folder f    ON f.id = tc.folder_id
           LEFT JOIN users u               ON u.id = tc.author_id
           LEFT JOIN atomic_requirement ar ON ar.id = tc.atomic_requirement_id
           LEFT JOIN requirement r         ON r.id = ar.requirement_id
@@ -20,6 +24,13 @@
 
     <sql id="searchWhere">
         <where>
+            <if test="projectId != null">AND tc.project_id = #{projectId}</if>
+            <if test="excludeProjectId != null">AND tc.project_id != #{excludeProjectId}</if>
+            <if test="folderIds != null and folderIds.size() > 0">
+                AND tc.folder_id IN
+                <foreach collection="folderIds" item="fid" open="(" separator="," close=")">#{fid}</foreach>
+            </if>
+            <if test="unfiled">AND tc.folder_id IS NULL</if>
             <if test="keyword != null and keyword != ''">
                 AND (LOWER(tc.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
                   OR LOWER(tc.tc_code) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
@@ -61,17 +72,18 @@
 
     <!-- TC 코드: TC-00001 형식 max+1 (샘플 데이터의 명시 코드와 충돌하지 않도록 시퀀스 대신 MAX 사용) -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO test_case (tc_code, title, module, precondition, priority, status, tags,
+        INSERT INTO test_case (tc_code, project_id, folder_id, title, module, precondition, priority, status, tags,
                                source, technique, review_status, atomic_requirement_id, origin_project_id, author_id)
         VALUES ((SELECT CONCAT('TC-', LPAD(CAST(COALESCE(MAX(CAST(SUBSTRING(tc_code, 4) AS INT)), 0) + 1 AS VARCHAR), 5, '0'))
                    FROM test_case WHERE tc_code LIKE 'TC-%'),
-                #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags},
+                #{projectId}, #{folderId}, #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags},
                 #{source}, #{technique}, #{reviewStatus}, #{atomicRequirementId}, #{originProjectId}, #{authorId})
     </insert>
 
     <update id="update">
         UPDATE test_case
-           SET title                 = #{title},
+           SET folder_id             = #{folderId},
+               title                 = #{title},
                module                = #{module},
                precondition          = #{precondition},
                priority              = #{priority},

@@ -26,7 +26,7 @@ class TestCaseServiceTest {
     JdbcTemplate jdbc;
 
     private TestCaseRequest request(String title, String module, List<StepRequest> steps) {
-        return new TestCaseRequest(title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", null, null, steps);
+        return new TestCaseRequest(1L, null, title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", null, null, steps);
     }
 
     @Test

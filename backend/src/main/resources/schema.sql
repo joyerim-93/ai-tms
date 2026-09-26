@@ -72,10 +72,23 @@ CREATE TABLE IF NOT EXISTS rule_catalog (
     template         VARCHAR(2000) NOT NULL            -- {min}, {max} 치환
 );
 
--- ─────────────────────────────── ② 테스트케이스 저장소 (프로젝트 비종속 중앙 자산)
+-- ─────────────────────────────── ② 테스트케이스 폴더 (프로젝트별 트리, 다단계 중첩)
+CREATE TABLE IF NOT EXISTS test_case_folder (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id       BIGINT       NOT NULL REFERENCES project (id),
+    parent_folder_id BIGINT       REFERENCES test_case_folder (id),  -- NULL = 프로젝트 최상위
+    name             VARCHAR(200) NOT NULL,
+    sort_order       INT          NOT NULL DEFAULT 0,
+    created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_folder_project ON test_case_folder (project_id, parent_folder_id);
+
+-- ─────────────────────────────── ② 테스트케이스 (프로젝트 소유. '중앙관리'는 검색/추천/가져오기 레이어에서)
 CREATE TABLE IF NOT EXISTS test_case (
     id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
     tc_code               VARCHAR(30)  NOT NULL UNIQUE,        -- 예: TC-00001
+    project_id            BIGINT       NOT NULL REFERENCES project (id),
+    folder_id             BIGINT       REFERENCES test_case_folder (id) ON DELETE SET NULL,  -- NULL = 미분류
     title                 VARCHAR(300) NOT NULL,
     module                VARCHAR(100),                        -- 업무 분류
     precondition          VARCHAR(2000),
@@ -88,7 +101,7 @@ CREATE TABLE IF NOT EXISTS test_case (
                           CHECK (technique IN ('BOUNDARY_VALUE', 'EQUIVALENCE_PARTITION', 'DECISION_TABLE', 'EXPLORATORY')),
     review_status         VARCHAR(10)  NOT NULL DEFAULT 'APPROVED' CHECK (review_status IN ('DRAFT', 'APPROVED', 'REJECTED')),
     atomic_requirement_id BIGINT       REFERENCES atomic_requirement (id) ON DELETE SET NULL,
-    origin_project_id     BIGINT       REFERENCES project (id),  -- RAG로 가져온 경우 원본 프로젝트
+    origin_project_id     BIGINT       REFERENCES project (id),  -- RAG 추천·'다른 프로젝트에서 가져오기' 복제 시 원본 프로젝트
     reviewed_by           BIGINT       REFERENCES users (id),
     reviewed_at           TIMESTAMP,
     author_id             BIGINT       REFERENCES users (id),  -- NULL = 시스템/AI 생성
@@ -97,6 +110,7 @@ CREATE TABLE IF NOT EXISTS test_case (
     updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_test_case_module ON test_case (module);
+CREATE INDEX IF NOT EXISTS idx_test_case_project_folder ON test_case (project_id, folder_id);
 CREATE INDEX IF NOT EXISTS idx_test_case_atomic ON test_case (atomic_requirement_id);
 
 CREATE TABLE IF NOT EXISTS test_step (

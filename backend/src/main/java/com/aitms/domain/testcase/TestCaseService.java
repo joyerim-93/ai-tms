@@ -3,6 +3,7 @@ package com.aitms.domain.testcase;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,8 +19,13 @@ import lombok.RequiredArgsConstructor;
 public class TestCaseService {
 
     private final TestCaseMapper mapper;
+    private final TestCaseFolderService folderService;
 
+    /** folderId 지정 시 하위 폴더 TC까지 포함 */
     public PageResponse<TestCase> search(TestCaseSearch search) {
+        if (search.getFolderId() != null) {
+            search.setFolderIds(folderService.selfAndDescendantIds(search.getFolderId()));
+        }
         return new PageResponse<>(mapper.search(search), mapper.count(search), search.getPage(), search.getSize());
     }
 
@@ -36,7 +42,12 @@ public class TestCaseService {
 
     @Transactional
     public TestCase create(TestCaseRequest req) {
+        if (req.projectId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "projectId: 필수 값입니다.");
+        }
+        folderService.assertInProject(req.folderId(), req.projectId());
         TestCase tc = apply(new TestCase(), req);
+        tc.setProjectId(req.projectId());
         tc.setAuthorId(CurrentUser.id());
         tc.setSource(TcSource.MANUAL);
         tc.setReviewStatus(ReviewStatus.APPROVED);
@@ -45,10 +56,12 @@ public class TestCaseService {
         return get(tc.getId());
     }
 
-    /** 수정할 때마다 version +1, 단계는 전체 교체. */
+    /** 수정할 때마다 version +1, 단계는 전체 교체. 프로젝트는 변경 불가(폴더 이동은 같은 프로젝트 안에서만). */
     @Transactional
     public TestCase update(Long id, TestCaseRequest req) {
-        TestCase tc = apply(get(id), req);
+        TestCase tc = get(id);
+        folderService.assertInProject(req.folderId(), tc.getProjectId());
+        apply(tc, req);
         mapper.update(tc);
         mapper.deleteSteps(id);
         saveSteps(id, req.steps());
@@ -63,6 +76,50 @@ public class TestCaseService {
         return get(id);
     }
 
+    /**
+     * 다른 프로젝트의 승인된 TC를 현재 프로젝트에 새 row로 복제 ('중앙관리'는 공유가 아니라 복제로 구현).
+     * origin_project_id = 원본 TC의 프로젝트. 요구사항 연결은 프로젝트별이라 복사하지 않음.
+     *
+     * @return 복제된 TC 목록 (같은 프로젝트·미승인·폐기 TC는 건너뜀)
+     */
+    @Transactional
+    public List<TestCase> importFrom(ImportRequest req) {
+        folderService.assertInProject(req.folderId(), req.projectId());
+        List<TestCase> imported = new ArrayList<>();
+        for (Long sourceId : req.testCaseIds()) {
+            TestCase src = get(sourceId);
+            if (src.getProjectId().equals(req.projectId())
+                    || src.getReviewStatus() != ReviewStatus.APPROVED
+                    || src.getStatus() != TestCaseStatus.ACTIVE) {
+                continue;
+            }
+            TestCase copy = new TestCase();
+            copy.setProjectId(req.projectId());
+            copy.setFolderId(req.folderId());
+            copy.setTitle(src.getTitle());
+            copy.setModule(src.getModule());
+            copy.setPrecondition(src.getPrecondition());
+            copy.setPriority(src.getPriority());
+            copy.setStatus(TestCaseStatus.ACTIVE);
+            copy.setTags(src.getTags());
+            copy.setTechnique(src.getTechnique());
+            copy.setSource(TcSource.MANUAL);
+            copy.setReviewStatus(ReviewStatus.APPROVED);
+            copy.setOriginProjectId(src.getProjectId());
+            copy.setAuthorId(CurrentUser.id());
+            mapper.insert(copy);
+
+            List<TestStep> steps = src.getSteps().stream()
+                    .map(s -> new TestStep(null, copy.getId(), s.getStepNo(), s.getAction(), s.getExpectedResult()))
+                    .toList();
+            if (!steps.isEmpty()) {
+                mapper.insertSteps(steps);
+            }
+            imported.add(get(copy.getId()));
+        }
+        return imported;
+    }
+
     /** 차수에 등록된 적 있는 TC는 이력 보존을 위해 삭제 불가 → 폐기(DEPRECATED) 처리 유도. */
     @Transactional
     public void delete(Long id) {
@@ -74,6 +131,7 @@ public class TestCaseService {
     }
 
     private TestCase apply(TestCase tc, TestCaseRequest req) {
+        tc.setFolderId(req.folderId());
         tc.setTitle(req.title().strip());
         tc.setModule(blankToNull(req.module()));
         tc.setPrecondition(blankToNull(req.precondition()));

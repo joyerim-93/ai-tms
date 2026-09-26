@@ -40,6 +40,7 @@
           FROM test_case tc
          WHERE tc.status = 'ACTIVE'
            AND tc.review_status = 'APPROVED'
+           AND tc.project_id = (SELECT c.project_id FROM test_cycle c WHERE c.id = #{cycleId})
            AND tc.id IN
            <foreach collection="testCaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
            AND NOT EXISTS (SELECT 1 FROM test_execution e

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.testcase.TestCaseFolderMapper">
+
+    <select id="findByProject" resultType="com.aitms.domain.testcase.TestCaseFolder">
+        SELECT f.*,
+               (SELECT COUNT(*) FROM test_case tc WHERE tc.folder_id = f.id) AS test_case_count
+          FROM test_case_folder f
+         WHERE f.project_id = #{projectId}
+         ORDER BY f.sort_order, f.id
+    </select>
+
+    <select id="findById" resultType="com.aitms.domain.testcase.TestCaseFolder">
+        SELECT * FROM test_case_folder WHERE id = #{id}
+    </select>
+
+    <select id="countSibling" resultType="int">
+        SELECT COUNT(*) FROM test_case_folder
+         WHERE project_id = #{projectId}
+           AND name = #{name}
+        <choose>
+            <when test="parentFolderId != null">AND parent_folder_id = #{parentFolderId}</when>
+            <otherwise>AND parent_folder_id IS NULL</otherwise>
+        </choose>
+    </select>
+
+    <!-- 같은 부모 아래 마지막 순서로 추가 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO test_case_folder (project_id, parent_folder_id, name, sort_order)
+        VALUES (#{projectId}, #{parentFolderId}, #{name},
+                (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM test_case_folder
+                  WHERE project_id = #{projectId}
+                  <choose>
+                      <when test="parentFolderId != null">AND parent_folder_id = #{parentFolderId}</when>
+                      <otherwise>AND parent_folder_id IS NULL</otherwise>
+                  </choose>))
+    </insert>
+
+    <select id="countTestCases" resultType="int">
+        SELECT COUNT(*) FROM test_case
+         WHERE project_id = #{projectId}
+        <if test="unfiledOnly">AND folder_id IS NULL</if>
+    </select>
+</mapper>

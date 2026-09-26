@@ -41,7 +41,7 @@ class DefectServiceTest {
     }
 
     private Long createExecution(long projectId) {
-        jdbc.update("INSERT INTO test_case (tc_code, title) VALUES ('TC-T" + projectId + "', 'tc')");
+        jdbc.update("INSERT INTO test_case (tc_code, project_id, title) VALUES ('TC-T" + projectId + "', " + projectId + ", 'tc')");
         Long tcId = jdbc.queryForObject("SELECT id FROM test_case WHERE tc_code = 'TC-T" + projectId + "'", Long.class);
         jdbc.update("INSERT INTO test_cycle (id, project_id, cycle_no, name) VALUES (?, ?, 1, '1차')", 900 + projectId, projectId);
         jdbc.update("INSERT INTO test_execution (cycle_id, test_case_id, tc_version, result) VALUES (?, ?, 1, 'FAIL')",

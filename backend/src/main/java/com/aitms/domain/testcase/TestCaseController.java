@@ -52,6 +52,13 @@ public class TestCaseController {
         return service.update(id, req);
     }
 
+    /** 다른 프로젝트에서 가져오기 — 선택한 TC를 현재 프로젝트에 복제 */
+    @PostMapping("/import")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<TestCase> importFrom(@Validated @RequestBody ImportRequest req) {
+        return service.importFrom(req);
+    }
+
     @PatchMapping("/{id}/review")
     public TestCase review(@PathVariable Long id, @Validated @RequestBody TestCaseRequest.ReviewRequest req) {
         return service.review(id, req.reviewStatus());

@@ -11,6 +11,7 @@ public class Project {
     private Long id;
     private String code;
     private String name;
+    private String description;
     private String status;
     private LocalDate startDate;
     private LocalDate endDate;

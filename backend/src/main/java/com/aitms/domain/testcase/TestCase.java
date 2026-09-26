@@ -13,6 +13,10 @@ import lombok.Setter;
 public class TestCase {
     private Long id;
     private String tcCode;
+    private Long projectId;
+    private String projectName;    // 조인 (가져오기 검색용)
+    private Long folderId;         // NULL = 미분류
+    private String folderName;     // 조인
     private String title;
     private String module;
     private String precondition;
