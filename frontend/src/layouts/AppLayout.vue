@@ -14,6 +14,9 @@ const menus = [
 ]
 
 const pageTitle = computed(() => route.meta.title ?? '')
+
+// 하위 경로(/test-cases/1 등)에서도 메뉴 활성화. 대시보드('/')는 정확히 일치할 때만.
+const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWith(to))
 </script>
 
 <template>
@@ -26,7 +29,7 @@ const pageTitle = computed(() => route.meta.title ?? '')
           :key="m.to"
           :to="m.to"
           class="nav-item"
-          exact-active-class="active"
+          :class="{ active: isActive(m.to) }"
         >
           <span class="nav-icon">{{ m.icon }}</span>{{ m.label }}
         </RouterLink>
@@ -41,7 +44,8 @@ const pageTitle = computed(() => route.meta.title ?? '')
         </button>
       </header>
       <main class="content">
-        <RouterView />
+        <!-- 같은 컴포넌트 재사용 경로(수정→등록 등) 이동 시 상태 초기화 -->
+        <RouterView :key="route.path" />
       </main>
     </div>
   </div>

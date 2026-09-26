@@ -24,7 +24,9 @@ ai-tms/
 │  └─ src/main/
 │     ├─ java/com/aitms/
 │     │  ├─ config/              WebConfig(CORS)
-│     │  ├─ common/              공통(HealthController 등)
+│     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser, Priority
+│     │  ├─ testcase/            ✅ 테스트케이스 저장소 (Controller/Service/Mapper/DTO)
+│     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현 (AI 추천 자리)
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
 │        ├─ application.yml
@@ -37,8 +39,10 @@ ai-tms/
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
       ├─ composables/useTheme.js 테마 토글
       ├─ layouts/AppLayout.vue   사이드바 + 헤더
-      ├─ components/             KpiCard, StatusBadge ...
-      ├─ views/                  페이지
+      ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
+      ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
+      ├─ components/             KpiCard, StatusBadge, PriorityChip
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form)
       └─ router/index.js
 ```
 
@@ -86,8 +90,26 @@ ai-tms/
 ## 컨벤션
 - **색상/간격 하드코딩 금지** → 반드시 `var(--*)`. 새 색이 필요하면 tokens.css에 라이트/다크 둘 다 추가.
 - 데스크탑 전용(min-width 1200px), 반응형 고려하지 않음.
-- 상태 표시는 `<StatusBadge status="PASS|FAIL|BLOCKED|NOT_RUN" />` 사용.
-- Backend: 도메인별 패키지, SQL은 mapper XML에 작성(어노테이션 SQL 지양), DB 컬럼은 snake_case → DTO는 camelCase(자동 매핑).
+- 상태 표시는 `<StatusBadge status="PASS|FAIL|BLOCKED|NOT_RUN" />`, 우선순위는 `<PriorityChip priority="HIGH|MEDIUM|LOW" />`.
+- 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
+- Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
+- 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트).
+- Backend: 도메인별 패키지, SQL은 mapper XML(`resources/mapper/<도메인>/`)에 작성(어노테이션 SQL 금지), `resultType`은 FQCN 사용(type alias 미사용), DB 컬럼 snake_case → DTO camelCase 자동 매핑.
+- 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
+- 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
+- 목록 API는 `PageResponse{items,total,page,size}` 반환, 검색 조건은 `XxxSearch`(page/size/getOffset).
+- 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (Security 도입 시 이 한 곳만 교체).
+
+## API 현황
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/test-cases?keyword&module&priority&status&page&size` | 검색+페이징 |
+| GET | `/api/test-cases/modules` | 모듈 목록(필터/자동완성) |
+| GET | `/api/test-cases/{id}` | 상세(steps 포함) |
+| POST / PUT | `/api/test-cases`, `/api/test-cases/{id}` | 등록/수정 (수정 시 version+1, 단계 전체 교체) |
+| DELETE | `/api/test-cases/{id}` | 차수 등록 이력 있으면 409 → 폐기(DEPRECATED)로 유도 |
+
+TC 코드는 `tc_code_seq` 시퀀스로 `TC-00001` 형식 채번.
 - API prefix `/api`. enum은 DB에 문자열로 저장.
 - 커밋 메시지: `type(scope): 한글 요약` (feat/fix/chore/refactor/docs).
 

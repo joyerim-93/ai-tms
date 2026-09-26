@@ -31,6 +31,11 @@
   --font-size-xl: 20px;
   --font-size-kpi: 28px;
   --transition: 0.2s ease;
+
+  /* 우선순위 칩 — 상태 색상 재사용 (테마 따라 자동 전환) */
+  --priority-high: var(--status-fail);       --priority-high-bg: var(--status-fail-bg);
+  --priority-medium: var(--status-notrun);   --priority-medium-bg: var(--status-notrun-bg);
+  --priority-low: var(--status-blocked);     --priority-low-bg: var(--status-blocked-bg);
 }
 
 /* ── 라이트 ─────────────────────────────── */
