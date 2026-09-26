@@ -22,7 +22,16 @@ const routes = [
         meta: { title: '테스트케이스 상세' },
       },
       { path: 'test-cases/:id(\\d+)/edit', component: TestCaseForm, meta: { title: '테스트케이스 수정' } },
-      { path: 'cycles', component: Placeholder, meta: { title: '테스트수행관리' } },
+      {
+        path: 'cycles',
+        component: () => import('@/views/cycle/CycleListView.vue'),
+        meta: { title: '테스트수행관리' },
+      },
+      {
+        path: 'cycles/:id(\\d+)',
+        component: () => import('@/views/cycle/CycleDetailView.vue'),
+        meta: { title: '테스트 차수' },
+      },
       { path: 'defects', component: Placeholder, meta: { title: '결함관리' } },
     ],
   },

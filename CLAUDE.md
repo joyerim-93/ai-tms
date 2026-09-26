@@ -26,6 +26,8 @@ ai-tms/
 │     │  ├─ config/              WebConfig(CORS)
 │     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser, Priority
 │     │  ├─ testcase/            ✅ 테스트케이스 저장소 (Controller/Service/Mapper/DTO)
+│     │  ├─ execution/           ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*, 요청 DTO는 ExecutionRequests)
+│     │  ├─ project/             프로젝트/멤버 조회
 │     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현 (AI 추천 자리)
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
@@ -38,11 +40,12 @@ ai-tms/
       ├─ styles/tokens.css       디자인 토큰 (라이트/다크)
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
       ├─ composables/useTheme.js 테마 토글
+      ├─ composables/useProject.js 전역 선택 프로젝트(헤더 셀렉트, localStorage `aitms-project`) — 프로젝트 종속 화면은 `watch(projectId, load, {immediate:true})`
       ├─ layouts/AppLayout.vue   사이드바 + 헤더
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
-      ├─ components/             KpiCard, StatusBadge, PriorityChip
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form)
+      ├─ components/             KpiCard, StatusBadge, PriorityChip, ProgressBar(결과 누적막대), BaseModal
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel)
       └─ router/index.js
 ```
 
@@ -99,6 +102,9 @@ ai-tms/
 - 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
 - 목록 API는 `PageResponse{items,total,page,size}` 반환, 검색 조건은 `XxxSearch`(page/size/getOffset).
 - 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (Security 도입 시 이 한 곳만 교체).
+- FK/UNIQUE 위반(DataIntegrityViolation)은 전역 핸들러에서 400 처리.
+- 모달은 `BaseModal`(title, width, #footer 슬롯), 상세 편집은 우측 슬라이드 패널(ExecutionPanel 패턴). 오버레이 색은 `--bg-overlay`, 그림자 `--shadow-overlay`.
+- 도메인 한 화면에서만 쓰는 하위 컴포넌트는 `views/<도메인>/`에 둠, 여러 곳에서 쓰면 `components/`.
 
 ## API 현황
 | Method | Path | 설명 |
@@ -109,7 +115,23 @@ ai-tms/
 | POST / PUT | `/api/test-cases`, `/api/test-cases/{id}` | 등록/수정 (수정 시 version+1, 단계 전체 교체) |
 | DELETE | `/api/test-cases/{id}` | 차수 등록 이력 있으면 409 → 폐기(DEPRECATED)로 유도 |
 
+| GET | `/api/projects`, `/api/projects/{id}/members` | 프로젝트 목록 / 담당자 후보 |
+| GET | `/api/cycles?projectId` | 차수 목록 + 결과별 집계(totalCount/passCount/failCount/blockedCount/notRunCount) |
+| GET / POST / PUT / DELETE | `/api/cycles[/{id}]` | 차수 CRUD (번호 자동 채번, 생성 시 PLANNED, 이력 있으면 삭제 409) |
+| GET | `/api/cycles/{id}/executions?result&assigneeId&keyword` | 차수별 수행 항목 |
+| POST | `/api/cycles/{id}/executions` `{testCaseIds, assigneeId}` | TC 등록 (ACTIVE·미등록만, `{added}` 반환) |
+| PUT | `/api/cycles/{id}/executions/assignee` `{executionIds, assigneeId}` | 담당자 일괄 지정 (null=해제) |
+| DELETE | `/api/cycles/{id}/executions/{executionId}` | 차수에서 제외 (이력 있으면 409) |
+| GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목 / 이력(최신순) |
+| POST | `/api/executions/{id}/results` `{result, comment}` | 결과 입력 → 최종결과 갱신 + 이력 추가 |
+
 TC 코드는 `tc_code_seq` 시퀀스로 `TC-00001` 형식 채번.
+
+### 테스트수행 규칙
+- 결과 입력 시 수행자=CurrentUser, 차수가 PLANNED면 IN_PROGRESS로 자동 전환.
+- CLOSED 차수는 TC 등록·담당 지정·제외·결과 입력 모두 409 (상태를 되돌리면 가능).
+- 진행률 = (전체 − 미수행) / 전체 (`labels.js progressRate`).
+- `test_execution.tc_version`(등록 시점) ≠ 현재 TC 버전이면 화면에 'TC 변경됨' 표시. 단계는 현재 버전 기준으로 보여줌(스냅샷 미보관).
 - API prefix `/api`. enum은 DB에 문자열로 저장.
 - 커밋 메시지: `type(scope): 한글 요약` (feat/fix/chore/refactor/docs).
 

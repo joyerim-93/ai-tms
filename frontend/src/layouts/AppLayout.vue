@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTheme } from '@/composables/useTheme'
+import { useProject } from '@/composables/useProject'
 
 const { theme, toggleTheme } = useTheme()
+const { projects, projectId } = useProject()
 const route = useRoute()
 
 const menus = [
@@ -39,9 +41,14 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
     <div class="main">
       <header class="header">
         <h1 class="page-title">{{ pageTitle }}</h1>
-        <button class="btn theme-toggle" @click="toggleTheme">
-          {{ theme === 'dark' ? '☀️ 라이트' : '🌙 다크' }}
-        </button>
+        <div class="header-right">
+          <select v-model="projectId" class="select project-select" title="프로젝트">
+            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+          <button class="btn theme-toggle" @click="toggleTheme">
+            {{ theme === 'dark' ? '☀️ 라이트' : '🌙 다크' }}
+          </button>
+        </div>
       </header>
       <main class="content">
         <!-- 같은 컴포넌트 재사용 경로(수정→등록 등) 이동 시 상태 초기화 -->
@@ -108,6 +115,13 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
   padding: 0 var(--space-6);
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
+}
+.header-right {
+  display: flex;
+  gap: var(--space-2);
+}
+.project-select {
+  width: 200px;
 }
 .page-title {
   font-size: var(--font-size-lg);
