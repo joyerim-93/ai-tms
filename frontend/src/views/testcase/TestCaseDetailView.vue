@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { testCaseApi } from '@/api/testCases'
-import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE, formatDateTime } from '@/constants/labels'
+import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE, REQUIREMENT_TYPE, formatDateTime } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
 import LabelChip from '@/components/LabelChip.vue'
 
@@ -84,17 +84,24 @@ async function remove() {
         <div><dt>버전</dt><dd>v{{ tc.version }}</dd></div>
         <div><dt>수정일</dt><dd>{{ formatDateTime(tc.updatedAt) }}</dd></div>
       </dl>
-      <div v-if="tc.atomicText" class="precondition">
-        <div class="label">근거 요구사항</div>
-        <p class="pre">
-          <RouterLink to="/test-cases/requirements" class="mono">{{ tc.reqCode }}</RouterLink>
-          {{ tc.atomicText }}
-        </p>
-      </div>
       <div v-if="tc.precondition" class="precondition">
         <div class="label">사전조건</div>
         <p class="pre">{{ tc.precondition }}</p>
       </div>
+    </section>
+
+    <section class="card requirements">
+      <div class="card-title">검증하는 요구사항 ({{ tc.requirements.length }})</div>
+      <ul v-if="tc.requirements.length" class="req-list">
+        <li v-for="r in tc.requirements" :key="r.atomicRequirementId">
+          <RouterLink :to="{ path: '/test-cases/requirements', query: { req: r.requirementId } }" class="mono">
+            {{ r.reqCode }}
+          </RouterLink>
+          <span class="chip chip-accent">{{ REQUIREMENT_TYPE[r.type] }}</span>
+          <span>{{ r.atomicText }}</span>
+        </li>
+      </ul>
+      <p v-else class="muted">연결된 요구사항이 없습니다. ‘수정’에서 이 케이스가 검증하는 요구사항을 선택하세요.</p>
     </section>
 
     <section class="card">
@@ -139,6 +146,23 @@ async function remove() {
 .review-buttons {
   display: flex;
   gap: var(--space-2);
+}
+.requirements {
+  margin-bottom: var(--space-4);
+}
+.req-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.req-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.req-list li + li {
+  border-top: 1px solid var(--border);
 }
 .summary {
   margin-bottom: var(--space-4);

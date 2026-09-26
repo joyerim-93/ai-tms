@@ -3,12 +3,15 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { requirementApi, ruleCatalogApi } from '@/api/requirements'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/projectStore'
-import { PRIORITY, REQUIREMENT_TYPE, TECHNIQUE } from '@/constants/labels'
+import { useRoute } from 'vue-router'
+import { PRIORITY, REQUIREMENT_TYPE, REVIEW_STATUS, TECHNIQUE } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
+import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
 
 // 요구사항 원문 → 원자 요구사항(AI 분해) → 규칙/RAG/LLM 추천 TC 흐름의 입구
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
+const route = useRoute()
 
 const requirements = ref([])
 const expanded = ref(null)       // 펼친 요구사항 상세 (atomics 포함)
@@ -71,9 +74,13 @@ const range = (a) => {
   return `${a.minValue?.toLocaleString() ?? ''} ~ ${a.maxValue?.toLocaleString() ?? ''} ${a.unit ?? ''}`
 }
 
-watch(projectId, () => {
+// ?req=<requirementId> 로 진입하면 해당 요구사항을 펼침 (TC 상세 → 요구사항 Traceability)
+watch(projectId, async (next, prev) => {
   expanded.value = null
-  load()
+  await load()
+  const reqId = Number(route.query.req)
+  const target = !prev && reqId ? requirements.value.find((r) => r.id === reqId) : null
+  if (target) toggle(target)
 }, { immediate: true })
 
 onMounted(async () => {
@@ -125,7 +132,7 @@ onMounted(async () => {
           <th style="width: 90px">코드</th>
           <th>제목</th>
           <th style="width: 80px">우선순위</th>
-          <th style="width: 90px">원자 요구사항</th>
+          <th style="width: 110px">커버리지</th>
           <th style="width: 70px">연결 TC</th>
           <th style="width: 70px">등록경로</th>
         </tr>
@@ -136,7 +143,12 @@ onMounted(async () => {
             <td class="mono">{{ r.reqCode }}</td>
             <td>{{ r.title }}</td>
             <td><PriorityChip :priority="r.priority" /></td>
-            <td>{{ r.atomicCount }}</td>
+            <td>
+              <span :class="r.atomicCount && r.coveredAtomicCount === r.atomicCount ? 'covered' : 'uncovered-text'">
+                {{ r.coveredAtomicCount }} / {{ r.atomicCount }}
+              </span>
+              <span class="muted small"> 원자</span>
+            </td>
             <td>{{ r.testCaseCount }}</td>
             <td class="muted small">{{ r.source }}</td>
           </tr>
@@ -157,8 +169,8 @@ onMounted(async () => {
                       <th style="width: 90px">유형</th>
                       <th>내용</th>
                       <th style="width: 180px">범위</th>
-                      <th>적용 규칙 (규칙 카탈로그)</th>
-                      <th style="width: 60px">TC</th>
+                      <th style="width: 110px" title="규칙 카탈로그 — 마우스를 올리면 템플릿 표시">적용 규칙</th>
+                      <th style="width: 380px">커버하는 테스트케이스</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -170,12 +182,24 @@ onMounted(async () => {
                       </td>
                       <td class="small">{{ range(a) }}</td>
                       <td class="small">
-                        <div v-for="rule in rulesByType[a.type] ?? []" :key="rule.id">
-                          <strong>{{ TECHNIQUE[rule.technique] }}</strong> — {{ rule.template }}
-                        </div>
+                        <span
+                          v-for="rule in rulesByType[a.type] ?? []"
+                          :key="rule.id"
+                          class="chip chip-muted rule"
+                          :title="rule.template"
+                        >
+                          {{ TECHNIQUE[rule.technique] }}
+                        </span>
                       </td>
                       <td>
-                        <RouterLink :to="`/test-cases?atomicRequirementId=${a.id}`">{{ a.testCaseCount }}건</RouterLink>
+                        <ul v-if="a.testCases.length" class="covering">
+                          <li v-for="tc in a.testCases" :key="tc.id">
+                            <RouterLink :to="`/test-cases/${tc.id}`" class="mono">{{ tc.tcCode }}</RouterLink>
+                            <span class="covering-title" :title="tc.title">{{ tc.title }}</span>
+                            <LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" />
+                          </li>
+                        </ul>
+                        <span v-else class="chip chip-high">미커버</span>
                       </td>
                     </tr>
                   </tbody>
@@ -241,6 +265,38 @@ tr.selected {
 .table.inner {
   background: var(--surface-card);
   border-radius: var(--radius-md);
+}
+.rule {
+  cursor: help;
+}
+.covered {
+  color: var(--result-success-text);
+  font-weight: 600;
+}
+.uncovered-text {
+  color: var(--result-fail-text);
+  font-weight: 600;
+}
+.covering {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.covering li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+.covering li + li {
+  margin-top: var(--space-1);
+}
+.covering-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .small {
   font-size: var(--font-size-xs);

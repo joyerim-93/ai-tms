@@ -213,6 +213,7 @@ watch(folderKey, () => load())
               <th style="width: 70px">우선순위</th>
               <th style="width: 76px">출처</th>
               <th style="width: 76px">검토</th>
+              <th style="width: 64px" title="검증하는 요구사항 수">요구사항</th>
               <th style="width: 120px">수정일</th>
             </tr>
           </thead>
@@ -228,6 +229,7 @@ watch(folderKey, () => load())
               <td><PriorityChip :priority="tc.priority" /></td>
               <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
               <td><LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" /></td>
+              <td :class="tc.requirementCount ? '' : 'muted'">{{ tc.requirementCount }}</td>
               <td class="muted small">{{ formatDateTime(tc.updatedAt) }}</td>
             </tr>
           </tbody>

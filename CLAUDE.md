@@ -59,12 +59,13 @@ ai-tms/
 - **project**, **project_member**(project_id, user_id, project_role)
 - **test_case_folder**(project_id, parent_folder_id 자기참조=중첩, name, sort_order) — 트리는 서비스에서 parent_folder_id로 조립
 - **test_case**(**프로젝트 소유** project_id NOT NULL, folder_id NULL=미분류, tc_code, title, module, precondition, priority, status `ACTIVE|DEPRECATED`, tags, author_id(NULL=시스템/AI), version,
-  source `MANUAL|RULE|RAG|LLM`, technique `BOUNDARY_VALUE|EQUIVALENCE_PARTITION|DECISION_TABLE|EXPLORATORY`, review_status `DRAFT|APPROVED|REJECTED`, atomic_requirement_id, origin_project_id(RAG 원본), reviewed_by/at)
+  source `MANUAL|RULE|RAG|LLM`, technique `BOUNDARY_VALUE|EQUIVALENCE_PARTITION|DECISION_TABLE|EXPLORATORY`, review_status `DRAFT|APPROVED|REJECTED`, origin_project_id(RAG/가져오기 원본), reviewed_by/at)
 - **test_step**(test_case_id, step_no, action, expected_result) — 단계는 행 단위 관리
 - **requirement**(project_id, req_code `REQ-001`, title, description=원문, source `MANUAL|PMS`, priority) — AI 추천 입력
 - **atomic_requirement**(requirement_id, atomic_text, type `AMOUNT_RANGE|RATE_RANGE|PERIOD_CONDITION|BOOLEAN_FLAG`, min/max_value, unit, conditions JSON) — AI 에이전트가 원문을 분해한 결과
 - **rule_catalog**(requirement_type, technique, template `{min}/{max}` 치환) — 규칙기반 추천
-- 추적: requirement → atomic_requirement → test_case(atomic_requirement_id). (구 requirement_tc 제거)
+- **test_case_requirement_link**(test_case_id, atomic_requirement_id, UNIQUE, 양쪽 ON DELETE CASCADE) — TC ↔ 원자 요구사항 **다대다**(Zephyr Traceability). test_case.atomic_requirement_id는 삭제됨.
+- 추적: requirement → atomic_requirement ⇄ test_case_requirement_link ⇄ test_case.
 - **test_cycle**(차수: project_id, cycle_no, name, 기간, status `PLANNED|IN_PROGRESS|CLOSED`)
 - **test_execution**(cycle_id, test_case_id **UNIQUE**, tc_version, assignee_id, 최종 result `PASS|FAIL|BLOCKED|NOT_RUN`)
 - **test_execution_history**(execution_id, result, executed_by, executed_at, comment) — 차수×TC별 모든 수행 기록
@@ -148,7 +149,8 @@ ai-tms/
 | POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
 | PATCH | `/api/test-cases/{id}/review` `{reviewStatus}` | AI 추천 TC 승인/반려 (검토자=CurrentUser) |
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
-| GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 |
+| GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
+| GET | `/api/requirements/atomics?projectId` | 프로젝트 원자 요구사항 전체(원문 코드·제목 포함) — TC 폼 선택용 |
 | POST | `/api/requirements/{id}/recommend` | AI 추천 트리거 → `TcRecommendation[]` (현재 Noop=빈 배열) |
 | GET | `/api/rule-catalog` | 규칙 카탈로그 |
 
@@ -158,6 +160,12 @@ ai-tms/
 - 폴더는 같은 프로젝트 안에서만(교차 프로젝트 폴더 지정 400). TC 수정 시 프로젝트 이동 불가, 폴더 이동은 가능.
 - 차수에는 **같은 프로젝트의** ACTIVE·APPROVED TC만 등록.
 - 폴더 선택 상태는 URL `?folder=all|unfiled|<id>`로 유지(상세→목록 복귀 시 같은 폴더).
+
+### 요구사항 ↔ TC 다대다 규칙 (v4-3)
+- TC 등록/수정 body의 `atomicRequirementIds`로 링크 **전체 교체**(중복 id 제거). **같은 프로젝트의 원자 요구사항만** 연결(아니면 400).
+- TC 상세 `requirements[]`(AtomicRequirementRef), 목록 `requirementCount`. 요구사항 목록 `testCaseCount`(중복 제거 TC 수)·`coveredAtomicCount`(TC 1건 이상 연결된 원자 수).
+- 다른 프로젝트에서 가져온 TC·RAG 추천 TC의 참고 출처는 링크가 아니라 `origin_project_id`로 표시 (샘플 TC 8·9는 링크 없음).
+- 화면: TC 폼 '검증하는 요구사항'(RequirementLinkPicker, 원문별 그룹 체크), TC 상세 목록(→ `/test-cases/requirements?req=<id>`로 펼침), 요구사항 탭 원자별 커버 TC + '미커버' 표시, 커버리지 M/N.
 
 ### AI 추천/검토 규칙
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
@@ -208,6 +216,7 @@ npm run build
 - ✅ docs/00-SKELETON.md 병합 (요구사항/원자요구사항/규칙카탈로그, TC 출처·기법·검토) — 단, 문서의 JPA·test_round 명칭·Pinia·문자열 담당자는 채택하지 않음(MyBatis, test_cycle, users FK 유지)
 - ✅ v4-1 프로젝트 전역화 (Pinia projectStore + 헤더 ProjectSelector, pill ProjectTabs 제거)
 - ✅ v4-2 TC 프로젝트 소유 + 폴더 트리 + 프로젝트 등록 + 다른 프로젝트에서 가져오기
-- ⏳ v4 남은 단계 (docs/06-DESIGN-v4.md): 3) TC-요구사항 N:N(test_case_requirement_link) → 4) 나머지 화면 필터링
+- ✅ v4-3 TC ↔ 요구사항 다대다 + Traceability
+- ⏳ v4 남은 단계: 4) 나머지 화면 필터링(대시보드 TC 수 프로젝트 기준 등)
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

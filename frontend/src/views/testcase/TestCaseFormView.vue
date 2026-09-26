@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
 import { folderApi } from '@/api/projects'
+import { requirementApi } from '@/api/requirements'
 import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
+import RequirementLinkPicker from './RequirementLinkPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,13 +24,14 @@ const form = reactive({
   status: 'ACTIVE',
   tags: '',
   technique: '',
-  atomicRequirementId: null, // 화면 편집 대상 아님 — 수정 시 기존 값 유지용
+  atomicRequirementIds: [], // 검증하는 원자 요구사항 (다대다)
   precondition: '',
   steps: [{ action: '', expectedResult: '' }],
 })
 const modules = ref([])
 const folders = ref([])        // 평면 [{ id, name, depth, path }]
 const tcProject = ref(null)    // 수정 시 TC 소유 프로젝트 { id, name }
+const requirementOptions = ref([]) // 같은 프로젝트의 원자 요구사항
 const saving = ref(false)
 const error = ref('')
 
@@ -36,12 +39,12 @@ onMounted(async () => {
   modules.value = await testCaseApi.modules().catch(() => [])
   try {
     if (!isEdit.value) {
-      if (currentProjectId.value) folders.value = flattenFolders((await folderApi.tree(currentProjectId.value)).roots)
+      if (currentProjectId.value) await loadProjectOptions(currentProjectId.value)
       return
     }
     const tc = await testCaseApi.get(id)
     tcProject.value = { id: tc.projectId, name: tc.projectName }
-    folders.value = flattenFolders((await folderApi.tree(tc.projectId)).roots) // 폴더 이동은 같은 프로젝트 안에서만
+    await loadProjectOptions(tc.projectId) // 폴더 이동·요구사항 연결은 같은 프로젝트 안에서만
     Object.assign(form, {
       folderId: tc.folderId ?? '',
       title: tc.title,
@@ -50,7 +53,7 @@ onMounted(async () => {
       status: tc.status,
       tags: tc.tags ?? '',
       technique: tc.technique ?? '',
-      atomicRequirementId: tc.atomicRequirementId,
+      atomicRequirementIds: tc.requirements.map((r) => r.atomicRequirementId),
       precondition: tc.precondition ?? '',
       steps: tc.steps.map(({ action, expectedResult }) => ({ action, expectedResult: expectedResult ?? '' })),
     })
@@ -58,6 +61,12 @@ onMounted(async () => {
     error.value = e.message
   }
 })
+
+async function loadProjectOptions(projectId) {
+  const [tree, atomics] = await Promise.all([folderApi.tree(projectId), requirementApi.atomics(projectId)])
+  folders.value = flattenFolders(tree.roots)
+  requirementOptions.value = atomics
+}
 
 const addStep = () => form.steps.push({ action: '', expectedResult: '' })
 const removeStep = (i) => form.steps.splice(i, 1)
@@ -155,6 +164,11 @@ async function save() {
       </div>
     </section>
 
+    <section class="card section">
+      <div class="card-title">검증하는 요구사항 <span class="muted count">{{ form.atomicRequirementIds.length }}건 선택</span></div>
+      <RequirementLinkPicker v-model="form.atomicRequirementIds" :options="requirementOptions" />
+    </section>
+
     <section class="card">
       <div class="steps-header">
         <div class="card-title">테스트 단계</div>
@@ -195,6 +209,11 @@ async function save() {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
+}
+.count {
+  margin-left: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
 }
 .readonly {
   display: flex;
