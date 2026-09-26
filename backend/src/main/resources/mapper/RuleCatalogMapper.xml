@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.recommend.RuleCatalogMapper">
+
+    <select id="findAll" resultType="com.aitms.domain.recommend.RuleCatalog">
+        SELECT * FROM rule_catalog ORDER BY requirement_type, id
+    </select>
+
+    <select id="findByType" resultType="com.aitms.domain.recommend.RuleCatalog">
+        SELECT * FROM rule_catalog WHERE requirement_type = #{requirementType} ORDER BY id
+    </select>
+</mapper>

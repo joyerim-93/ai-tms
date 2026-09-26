@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.defect.DefectMapper">
+
+    <sql id="fromJoined">
+          FROM defect d
+          LEFT JOIN users r ON r.id = d.reporter_id
+          LEFT JOIN users a ON a.id = d.assignee_id
+          LEFT JOIN test_execution e ON e.id = d.execution_id
+          LEFT JOIN test_case tc ON tc.id = e.test_case_id
+          LEFT JOIN test_cycle c ON c.id = e.cycle_id
+    </sql>
+
+    <sql id="columns">
+        SELECT d.*,
+               r.name  AS reporter_name,
+               a.name  AS assignee_name,
+               tc.id   AS test_case_id,
+               tc.tc_code,
+               tc.title AS tc_title,
+               c.id    AS cycle_id,
+               c.cycle_no,
+               c.name  AS cycle_name
+    </sql>
+
+    <sql id="searchWhere">
+        <where>
+            <if test="projectId != null">AND d.project_id = #{projectId}</if>
+            <if test="executionId != null">AND d.execution_id = #{executionId}</if>
+            <if test="status != null">AND d.status = #{status}</if>
+            <if test="unresolved">
+                AND d.status IN
+                <foreach collection="unresolvedStatuses" item="s" open="(" separator="," close=")">#{s}</foreach>
+            </if>
+            <if test="severity != null">AND d.severity = #{severity}</if>
+            <if test="assigneeId != null">AND d.assignee_id = #{assigneeId}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (LOWER(d.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                  OR LOWER(d.defect_code) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+            </if>
+        </where>
+    </sql>
+
+    <select id="search" resultType="com.aitms.domain.defect.Defect">
+        <include refid="columns"/>
+        <include refid="fromJoined"/>
+        <include refid="searchWhere"/>
+         ORDER BY d.id DESC
+         LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM defect d
+        <include refid="searchWhere"/>
+    </select>
+
+    <select id="findById" resultType="com.aitms.domain.defect.Defect">
+        <include refid="columns"/>
+        <include refid="fromJoined"/>
+         WHERE d.id = #{id}
+    </select>
+
+    <!-- 결함 코드: 프로젝트 내 DF-0001 순번 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO defect (project_id, defect_code, title, description, severity, priority, status,
+                            reporter_id, assignee_id, execution_id)
+        VALUES (#{projectId},
+                (SELECT CONCAT('DF-', LPAD(CAST(COALESCE(MAX(CAST(SUBSTRING(defect_code, 4) AS INT)), 0) + 1 AS VARCHAR), 4, '0'))
+                   FROM defect WHERE project_id = #{projectId}),
+                #{title}, #{description}, #{severity}, #{priority}, #{status},
+                #{reporterId}, #{assigneeId}, #{executionId})
+    </insert>
+
+    <update id="update">
+        UPDATE defect
+           SET title       = #{title},
+               description = #{description},
+               severity    = #{severity},
+               priority    = #{priority},
+               assignee_id = #{assigneeId},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE defect SET status = #{status}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
+
+    <insert id="insertComment" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO defect_comment (defect_id, author_id, content, status_from, status_to)
+        VALUES (#{defectId}, #{authorId}, #{content}, #{statusFrom}, #{statusTo})
+    </insert>
+
+    <select id="findComments" resultType="com.aitms.domain.defect.DefectComment">
+        SELECT dc.*, u.name AS author_name
+          FROM defect_comment dc
+          LEFT JOIN users u ON u.id = dc.author_id
+         WHERE dc.defect_id = #{defectId}
+         ORDER BY dc.created_at, dc.id
+    </select>
+</mapper>

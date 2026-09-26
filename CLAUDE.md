@@ -9,7 +9,7 @@
 ## 스택
 | 영역 | 사용 |
 |---|---|
-| Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** |
+| Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** (docs/03-SKELETON-v2.md 기준) |
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
 | Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4 |
 | 인증 | 미적용. 추후 Spring Security (users 테이블만 미리 설계) |
@@ -23,21 +23,22 @@ ai-tms/
 ├─ backend/                      Spring Boot (com.aitms)
 │  └─ src/main/
 │     ├─ java/com/aitms/
-│     │  ├─ config/              WebConfig(CORS)
+│     │  ├─ AiTmsApplication.java
+│     │  ├─ config/              WebConfig(CORS)  (ai-agent 호출용 HTTP 클라이언트 설정 예정)
 │     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser, Priority
-│     │  ├─ testcase/            ✅ 테스트케이스 저장소 (Controller/Service/Mapper/DTO)
-│     │  ├─ execution/           ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*, 요청 DTO는 ExecutionRequests)
-│     │  ├─ project/             프로젝트/멤버 조회
-│     │  ├─ defect/              ✅ 결함관리 (DefectStatus에 상태 전이 규칙, DefectRequests)
-│     │  ├─ dashboard/           ✅ 대시보드 요약 (DashboardSummary 한 번에 반환)
-│     │  ├─ requirement/         요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
-│     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현, RuleCatalog(규칙 카탈로그)
-│     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
+│     │  └─ domain/              도메인별 패키지: VO/DTO · XxxMapper(@Mapper) · XxxService · XxxController
+│     │     ├─ project/          프로젝트/멤버 조회
+│     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
+│     │     ├─ testcase/         ✅ 테스트케이스 저장소 (+ 추천 출처/검토)
+│     │     ├─ recommend/        RecommendationService 인터페이스 + Noop 구현, RuleCatalog(규칙 카탈로그)
+│     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
+│     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
+│     │     └─ dashboard/        ✅ 대시보드 요약
 │     └─ resources/
-│        ├─ application.yml
-│        ├─ schema.sql           전체 12개 테이블 (CREATE TABLE IF NOT EXISTS, 기동마다 실행)
+│        ├─ application.yml      mybatis.mapper-locations = classpath:mapper/*.xml
+│        ├─ schema.sql           전체 13개 테이블 (CREATE TABLE IF NOT EXISTS, 기동마다 실행)
 │        ├─ data.sql             KB 적금 시나리오 샘플 (INSERT IGNORE — 최초 1회만 반영)
-│        └─ mapper/<도메인>/*.xml MyBatis 쿼리
+│        └─ mapper/XxxMapper.xml MyBatis 쿼리 — Mapper 인터페이스 1개당 XML 1개, 한 폴더(namespace = com.aitms.domain.<도메인>.XxxMapper)
 └─ frontend/                     Vue 3 + Vite
    └─ src/
       ├─ styles/tokens.css       디자인 토큰 (라이트/다크)
@@ -105,7 +106,7 @@ ai-tms/
 - 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
 - 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트).
-- Backend: 도메인별 패키지, SQL은 mapper XML(`resources/mapper/<도메인>/`)에 작성(어노테이션 SQL 금지), `resultType`은 FQCN 사용(type alias 미사용), DB 컬럼 snake_case → DTO camelCase 자동 매핑.
+- Backend: 도메인별 패키지, SQL은 mapper XML(`resources/mapper/XxxMapper.xml`)에 작성(어노테이션 SQL 금지), `resultType`은 FQCN 사용(type alias 미사용), DB 컬럼 snake_case → DTO camelCase 자동 매핑.
 - 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
 - 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
 - 목록 API는 `PageResponse{items,total,page,size}` 반환, 검색 조건은 `XxxSearch`(page/size/getOffset).
