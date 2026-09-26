@@ -2,6 +2,18 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitms.domain.dashboard.DashboardMapper">
 
+    <select id="countActiveTestCases" resultType="long">
+        SELECT COUNT(*) FROM test_case
+         WHERE status = 'ACTIVE'
+        <if test="sinceDays != null">AND created_at &gt;= DATEADD('DAY', -CAST(#{sinceDays} AS INT), CURRENT_TIMESTAMP)</if>
+    </select>
+
+    <select id="countDefectsCreatedSince" resultType="long">
+        SELECT COUNT(*) FROM defect
+         WHERE project_id = #{projectId}
+           AND created_at &gt;= DATEADD('DAY', -CAST(#{sinceDays} AS INT), CURRENT_TIMESTAMP)
+    </select>
+
     <!-- 내 할일(TC) = 종료되지 않은 차수에서 나에게 배정된 미수행 항목 -->
     <sql id="myPendingWhere">
           FROM test_execution e

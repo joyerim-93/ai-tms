@@ -104,9 +104,37 @@ class DashboardServiceTest {
 
         DashboardSummary s = dashboard.summary(P);
 
-        assertThat(s.unresolvedDefectCount()).isEqualTo(2);
+        assertThat(s.openDefectCount()).isEqualTo(2);
         assertThat(s.criticalDefectCount()).isEqualTo(1);
         assertThat(s.myOpenDefectCount()).isEqualTo(1);
         assertThat(s.myDefects()).hasSize(1);
+    }
+
+    @Test
+    void 요약카드_지표_통과율은_현재차수_기준이고_직전차수와_비교된다() {
+        Long a = tc("A"), b = tc("B"), c = tc("C");
+        TestCycle first = cycle("1차", List.of(a, b), ME);
+        List<Long> firstIds = executionService.findByCycle(first.getId(), new ExecutionSearch()).stream()
+                .map(e -> e.getId()).toList();
+        executionService.record(firstIds.get(0), new ResultRequest(ExecutionResult.PASS, null));
+        executionService.record(firstIds.get(1), new ResultRequest(ExecutionResult.FAIL, null));
+        cycleService.update(first.getId(), new CycleRequest(null, "1차", null, null, CycleStatus.CLOSED));
+
+        TestCycle second = cycle("2차", List.of(a, b, c), ME);
+        Long secondFirst = executionService.findByCycle(second.getId(), new ExecutionSearch()).get(0).getId();
+        executionService.record(secondFirst, new ResultRequest(ExecutionResult.PASS, null)); // 1/1 수행 통과, 2건 미수행
+        cycle("3차", List.of(a), ME); // 계획 상태
+        defect(Severity.MINOR, OTHER);
+
+        DashboardSummary s = dashboard.summary(P);
+
+        assertThat(s.passRate()).isEqualTo(100.0);           // 미수행 제외
+        assertThat(s.previousPassRate()).isEqualTo(50.0);
+        assertThat(s.activeCycleCount()).isEqualTo(2);        // 2차(진행중) + 3차(계획)
+        assertThat(s.inProgressCycleCount()).isEqualTo(1);
+        assertThat(s.openDefectCount()).isEqualTo(1);
+        assertThat(s.defectsOpenedThisWeek()).isEqualTo(1);
+        assertThat(s.testCasesAddedThisWeek()).isGreaterThanOrEqualTo(3);
+        assertThat(s.totalTestCaseCount()).isGreaterThanOrEqualTo(s.testCasesAddedThisWeek());
     }
 }

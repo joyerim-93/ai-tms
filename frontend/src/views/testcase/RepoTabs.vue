@@ -28,8 +28,8 @@ const tabs = [
   margin-bottom: -1px;
 }
 .tab.active {
-  color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
   font-weight: 600;
 }
 </style>

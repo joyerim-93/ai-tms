@@ -25,14 +25,14 @@ export const RESULT = {
   NOT_RUN: '미수행',
 }
 
-// 결함 상태 → 표시명 / 칩 클래스
+// 이슈(결함) 상태 표시명 — 색상은 StatusBadge 가 담당
 export const DEFECT_STATUS = {
-  NEW: { label: '신규', chip: 'chip-accent' },
-  OPEN: { label: '접수', chip: 'chip-medium' },
-  IN_PROGRESS: { label: '처리중', chip: 'chip-medium' },
-  RESOLVED: { label: '해결', chip: 'chip-pass' },
-  CLOSED: { label: '종료', chip: 'chip-muted' },
-  REJECTED: { label: '반려', chip: 'chip-low' },
+  NEW: '신규',
+  OPEN: '열림',
+  IN_PROGRESS: '진행중',
+  RESOLVED: '해결됨',
+  CLOSED: '종료',
+  REJECTED: '반려',
 }
 
 export const SEVERITY = {
@@ -43,6 +43,23 @@ export const SEVERITY = {
 }
 
 export const formatDateTime = (value) => (value ? value.slice(0, 16).replace('T', ' ') : '-')
+
+/** "10분 전", "3시간 전", "어제", "5일 전", 그 이상은 날짜 */
+export function formatRelative(value) {
+  if (!value) return '-'
+  const diffMin = Math.floor((Date.now() - new Date(value).getTime()) / 60000)
+  if (diffMin < 1) return '방금'
+  if (diffMin < 60) return `${diffMin}분 전`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}시간 전`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay === 1) return '어제'
+  if (diffDay < 7) return `${diffDay}일 전`
+  return value.slice(0, 10)
+}
+
+/** 통과율(%) = 통과 / 전체 — 대시보드 '테스트 차수별 진행률' 기준 */
+export const passRate = (c) => (c.totalCount ? Math.round((c.passCount / c.totalCount) * 100) : 0)
 
 /** 진행률(%) = 수행 완료(미수행 제외) / 전체 */
 export const progressRate = (c) =>

@@ -132,7 +132,7 @@ async function remove() {
   gap: var(--space-2);
 }
 .review-draft {
-  border-left: 3px solid var(--status-notrun);
+  border-left: 3px solid var(--badge-progress-text);
 }
 .review-buttons {
   display: flex;

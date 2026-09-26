@@ -211,10 +211,10 @@ onMounted(async () => {
   margin-top: var(--space-3);
 }
 tr.selected {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 .detail-row > td {
-  background: var(--bg-app);
+  background: var(--surface-page);
 }
 .detail {
   padding: var(--space-2) var(--space-3);
@@ -233,12 +233,12 @@ tr.selected {
 .message {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  color: var(--color-accent);
-  background: var(--color-accent-bg);
+  color: var(--accent);
+  background: var(--accent-soft);
   font-size: var(--font-size-sm);
 }
 .table.inner {
-  background: var(--bg-card);
+  background: var(--surface-card);
   border-radius: var(--radius-md);
 }
 .small {

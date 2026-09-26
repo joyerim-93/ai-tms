@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { defectApi } from '@/api/defects'
 import { DEFECT_STATUS, SEVERITY, formatDateTime } from '@/constants/labels'
 import LabelChip from '@/components/LabelChip.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 
 const route = useRoute()
@@ -63,7 +64,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
       <section class="card">
         <div class="title-row">
           <span class="mono muted">{{ defect.defectCode }}</span>
-          <LabelChip :map="DEFECT_STATUS" :value="defect.status" />
+          <StatusBadge :status="defect.status" />
           <LabelChip :map="SEVERITY" :value="defect.severity" />
           <PriorityChip :priority="defect.priority" />
         </div>
@@ -79,9 +80,9 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
             <div class="timeline-head">
               <strong>{{ c.authorName }}</strong>
               <template v-if="c.statusTo">
-                <LabelChip :map="DEFECT_STATUS" :value="c.statusFrom" />
+                <StatusBadge :status="c.statusFrom" />
                 →
-                <LabelChip :map="DEFECT_STATUS" :value="c.statusTo" />
+                <StatusBadge :status="c.statusTo" />
               </template>
               <span class="muted small">{{ formatDateTime(c.createdAt) }}</span>
             </div>
@@ -114,7 +115,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
             :disabled="busy"
             @click="changeStatus(s)"
           >
-            → {{ DEFECT_STATUS[s].label }}
+            → {{ DEFECT_STATUS[s] }}
           </button>
         </div>
       </section>
@@ -190,7 +191,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   border-left: 2px solid var(--border);
 }
 .timeline li.status-change {
-  border-left-color: var(--color-accent);
+  border-left-color: var(--accent);
 }
 .timeline-head {
   display: flex;

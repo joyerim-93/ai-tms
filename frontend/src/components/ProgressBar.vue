@@ -30,10 +30,10 @@ const segments = computed(() => {
   height: 8px;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
-.pass { background: var(--status-pass); }
-.fail { background: var(--status-fail); }
-.blocked { background: var(--status-blocked); }
-.notrun { background: var(--status-notrun-bg); }
+.pass { background: var(--result-success-text); }
+.fail { background: var(--result-fail-text); }
+.blocked { background: var(--result-block-text); }
+.notrun { background: var(--result-notrun-bg); }
 </style>

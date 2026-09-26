@@ -1,6 +1,6 @@
 # AI-TMS (테스트공정관리 포탈)
 
-개발자·현업·QA가 함께 쓰는 테스트 관리 포탈. 기능: ① 대시보드(내 할일) ② 테스트케이스 저장소(+AI 추천) ③ 테스트수행관리(차수) ④ 결함관리.
+개발자·현업·QA가 함께 쓰는 테스트 관리 포탈. 기능: ① 대시보드(내 할일) ② 테스트케이스 저장소(+AI 추천) ③ 테스트수행관리(차수) ④ 이슈관리(결함 — 코드/DB는 defect, 화면 명칭은 '이슈').
 
 ## 작업 방식
 - 단계별로 진행하고 **매 단계 사용자 확인 후** 다음 단계로. 한 번에 다 만들지 말 것.
@@ -41,14 +41,14 @@ ai-tms/
 │        └─ mapper/XxxMapper.xml MyBatis 쿼리 — Mapper 인터페이스 1개당 XML 1개, 한 폴더(namespace = com.aitms.domain.<도메인>.XxxMapper)
 └─ frontend/                     Vue 3 + Vite
    └─ src/
-      ├─ styles/tokens.css       디자인 토큰 (라이트/다크)
+      ├─ styles/theme.css        디자인 토큰 v3 (docs/04-DESIGN-v3.md) — 라이트만, 다크는 추후 같은 변수명으로
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
-      ├─ composables/useTheme.js 테마 토글
-      ├─ composables/useProject.js 전역 선택 프로젝트(헤더 셀렉트, localStorage `aitms-project`) — 프로젝트 종속 화면은 `watch(projectId, load, {immediate:true})`
-      ├─ layouts/AppLayout.vue   사이드바 + 헤더
+      ├─ composables/useProject.js 전역 선택 프로젝트(ProjectTabs, localStorage `aitms-project`) — 프로젝트 종속 화면은 `watch(projectId, load, {immediate:true})`
+      ├─ layouts/AppLayout.vue   AppHeader + ProjectTabs + 가운데 정렬 콘텐츠(max 1120px)
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
-      ├─ components/             KpiCard, StatusBadge, PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal
+      ├─ components/             AppHeader, ProjectTabs, StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
+      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal
       ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
@@ -79,30 +79,29 @@ ai-tms/
 - 서비스 테스트는 샘플과 분리하려고 테스트 전용 프로젝트(id 99/98)를 `@BeforeEach`에서 넣어 사용.
 - 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
 
-## 디자인 토큰 (`frontend/src/styles/tokens.css`)
-테마 전환: `<html data-theme="light|dark">`, localStorage 키 `aitms-theme`. index.html 인라인 스크립트로 첫 페인트 전 적용.
+## 디자인 v3 (docs/04-DESIGN-v3.md, docs/dashboard-reference.jpg)
+- **레이아웃:** 좌측 사이드바 폐기 → 상단 `AppHeader`(로고 AI-TMS + 탭 4개: 대시보드/테스트케이스/테스트 수행/이슈관리, 활성 탭 `--accent` 밑줄) + 그 아래 `ProjectTabs`(pill, 선택 시 ✓ + accent). 페이지 제목(h1) 없음.
+- **라이트 모드만.** 테마 토글·useTheme 제거. 다크는 theme.css 하단 `[data-theme='dark']`에 **같은 변수명**으로 값만 추가.
 
-| 변수 | 라이트 | 다크 |
+### 토큰 (`frontend/src/styles/theme.css`)
+1) 문서 정의(그대로 유지): `--surface-page #F5F6FA`, `--surface-card #FFF`, `--border #E7E8EF`, `--text-primary #1F2430`, `--text-secondary #6B7280`, `--text-muted #9CA3AF`, `--accent #4F5FF0`, `--accent-soft #EEF0FE`,
+   `--badge-{open|progress|resolved|closed}-{bg|text}`(이슈: 빨강/노랑/초록/회색), `--result-{success|fail|block|notrun}-{bg|text}`(결과: 초록/빨강/**노랑**/**회색**), `--radius-card 12px`, `--shadow-card`
+2) 확장(문서에 없는 UI용): `--surface-hover`, `--surface-muted`(pill 트랙), `--accent-hover`, `--on-accent`, `--overlay`, `--shadow-overlay`, `--priority-{high|medium|low}-{bg|text}`(=fail/block/notrun)
+3) 레이아웃: `--header-height`, `--content-max-width`, `--space-1..6`(4~32px), `--radius-sm|md|pill`, `--font-size-xs..xl`, `--font-size-stat`(32px), `--font-sans`, `--font-mono`
+
+### 상태 뱃지 (`StatusBadge.vue` 하나로 공용)
+| status | 표시 | 톤 |
 |---|---|---|
-| `--color-primary` | #1B2A4A (네이비) | 동일 |
-| `--color-accent` | #4A9EFF (블루) | 동일 |
-| `--bg-app` | #f5f6fa | #1a1a2e |
-| `--bg-card` | #ffffff | #1e1e2e |
-| `--bg-sidebar` | #1B2A4A | #151526 |
-| `--text-primary` / `--text-secondary` / `--text-muted` | #1f2433 / #5b6478 / #8a93a6 | #f1f3f8 / #c3c8d4 / #8b91a3 |
-| `--border` | #e3e7ef | #2e2e44 |
-| `--shadow-card` | 옅은 네이비 그림자 | 진한 그림자 |
-| `--status-pass(-bg)` | 초록 | 초록 |
-| `--status-fail(-bg)` | 빨강 | 빨강 |
-| `--status-blocked(-bg)` | 회색 | 회색 |
-| `--status-notrun(-bg)` | 노랑/주황 | 노랑 |
-
-기타: `--space-1..6`(4/8/12/16/24/32px), `--radius-sm|md|lg`, `--font-size-*`, `--sidebar-width`, `--header-height`.
+| PASS / FAIL / BLOCKED / NOT_RUN | 성공 / 실패 / Block / 미수행 | result-success / fail / block / notrun |
+| NEW, OPEN / IN_PROGRESS / RESOLVED / CLOSED, REJECTED | 신규·열림 / 진행중 / 해결됨 / 종료·반려 | badge-open / progress / resolved / closed |
+| PLANNED (차수) | 계획 | badge-closed (차수 IN_PROGRESS·CLOSED는 이슈와 같은 톤·표시명) |
+표시명은 `labels.js`(RESULT, DEFECT_STATUS, CYCLE_STATUS)에서 가져옴 — 색·이름을 바꿀 땐 StatusBadge의 TONE / labels.js 한 곳만 수정.
 
 ## 컨벤션
-- **색상/간격 하드코딩 금지** → 반드시 `var(--*)`. 새 색이 필요하면 tokens.css에 라이트/다크 둘 다 추가.
+- **색상/간격 하드코딩 금지** → 반드시 `var(--*)`. 새 색이 필요하면 theme.css의 '확장 토큰'에 추가(다크 추가 시 같은 이름으로 재정의).
 - 데스크탑 전용(min-width 1200px), 반응형 고려하지 않음.
-- 상태 표시는 `<StatusBadge status="PASS|FAIL|BLOCKED|NOT_RUN" />`, 우선순위는 `<PriorityChip priority="HIGH|MEDIUM|LOW" />`.
+- 테스트 결과·이슈 상태·차수 상태는 모두 `<StatusBadge :status />`, 우선순위는 `<PriorityChip />`, 심각도·출처·검토상태는 `<LabelChip :map :value />`.
+- 요약 카드는 `<StatCard title value unit sub />` 재사용 (다른 화면 상단 요약에도 사용 예정).
 - 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
 - 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트).
@@ -183,13 +182,15 @@ npm run build
 - 수행 항목 연결: 결과 패널(FAIL/BLOCKED)의 '결함 등록' → `/defects/new?executionId=` 로 진입, 제목·본문 템플릿 자동 채움. 다른 프로젝트 수행 항목 연결은 400.
 - 표시명/칩 색: `labels.js`의 `DEFECT_STATUS`, `SEVERITY` (`{label, chip}`) + `<LabelChip :map :value>`.
 
-### 대시보드 기준 (로그인 사용자 = CurrentUser, 헤더 선택 프로젝트)
-- 내 할일 = 내 미수행 TC(종료되지 않은 차수, 내 담당, NOT_RUN) + 내 담당 미해결 결함.
-- 이번 차수 = IN_PROGRESS 중 최신 차수 → 없으면 PLANNED 중 최신 → 없으면 없음. 진행률·실패 TC 수는 이 차수 기준.
-- 미해결 결함 = 프로젝트 전체 NEW/OPEN/IN_PROGRESS (치명 건수 별도).
-- 내 미수행 TC 클릭 → `/cycles/{cycleId}?exec={executionId}` 로 이동해 결과 입력 패널 자동 오픈.
+### 대시보드 기준 (헤더 선택 프로젝트)
+- 총 테스트케이스 = ACTIVE TC 수(저장소는 프로젝트 비종속 → 전체), 보조: 최근 7일 등록 수.
+- 수행 통과율 = 현재 차수 PASS / 수행완료(미수행 제외), 보조: 직전 차수 대비 %p. 현재 차수 = IN_PROGRESS 최신 → 없으면 PLANNED 최신.
+- 열린 이슈 = NEW/OPEN/IN_PROGRESS, 보조: 최근 7일 등록 수. 활성 테스트 차수 = CLOSED 아닌 차수, 보조: 진행중 수.
+- 최근 등록된 이슈 = 프로젝트 이슈 최신 5건(defect 검색 API 재사용). 테스트 차수별 진행률 = 진행중→계획→종료 순 3개, **진행률 % = 통과 / 전체**(레퍼런스 기준, `labels.js passRate`) — 차수 화면의 진행률(수행완료/전체, `progressRate`)과 다름에 주의.
+- `/api/dashboard`는 내 할일 필드(myExecutions 등)도 계속 내려줌 — v3 화면에서는 미사용.
 
 ## 진행 현황
 - ✅ 골격 / 스키마 / ② TC 저장소 / ③ 테스트수행 / ④ 결함 / ① 대시보드
 - ✅ docs/00-SKELETON.md 병합 (요구사항/원자요구사항/규칙카탈로그, TC 출처·기법·검토) — 단, 문서의 JPA·test_round 명칭·Pinia·문자열 담당자는 채택하지 않음(MyBatis, test_cycle, users FK 유지)
-- ⏳ 이후 후보: Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
+- ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
+- ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

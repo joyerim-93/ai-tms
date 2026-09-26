@@ -27,14 +27,14 @@ const emit = defineEmits(['close'])
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-overlay);
+  background: var(--overlay);
 }
 .modal {
   display: flex;
   flex-direction: column;
   max-height: 85vh;
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-overlay);
 }
 .modal-header,

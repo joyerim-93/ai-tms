@@ -3,8 +3,9 @@ import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { cycleApi } from '@/api/cycles'
 import { useProject } from '@/composables/useProject'
-import { CYCLE_STATUS, progressRate } from '@/constants/labels'
+import { progressRate } from '@/constants/labels'
 import ProgressBar from '@/components/ProgressBar.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 
 const router = useRouter()
 const { projectId } = useProject()
@@ -39,7 +40,6 @@ async function create() {
   }
 }
 
-const statusChip = { PLANNED: 'chip-muted', IN_PROGRESS: 'chip-medium', CLOSED: 'chip-low' }
 
 watch(projectId, load, { immediate: true })
 </script>
@@ -76,7 +76,7 @@ watch(projectId, load, { immediate: true })
     >
       <div class="cycle-head">
         <span class="cycle-no">{{ c.cycleNo }}차</span>
-        <span class="chip" :class="statusChip[c.status]">{{ CYCLE_STATUS[c.status] }}</span>
+        <StatusBadge :status="c.status" />
       </div>
       <h3 class="cycle-name">{{ c.name }}</h3>
       <p class="muted period">{{ c.startDate ?? '미정' }} ~ {{ c.endDate ?? '미정' }}</p>
@@ -120,7 +120,7 @@ watch(projectId, load, { immediate: true })
   transition: border-color var(--transition);
 }
 .cycle-card:hover {
-  border-color: var(--color-accent);
+  border-color: var(--accent);
 }
 .cycle-head {
   display: flex;
@@ -128,7 +128,7 @@ watch(projectId, load, { immediate: true })
   align-items: center;
 }
 .cycle-no {
-  color: var(--color-accent);
+  color: var(--accent);
   font-weight: 700;
 }
 .cycle-name {
@@ -156,8 +156,8 @@ watch(projectId, load, { immediate: true })
   font-size: var(--font-size-xs);
   font-weight: 600;
 }
-.c-pass { color: var(--status-pass); }
-.c-fail { color: var(--status-fail); }
-.c-blocked { color: var(--status-blocked); }
-.c-notrun { color: var(--status-notrun); }
+.c-pass { color: var(--result-success-text); }
+.c-fail { color: var(--result-fail-text); }
+.c-blocked { color: var(--result-block-text); }
+.c-notrun { color: var(--result-notrun-text); }
 </style>

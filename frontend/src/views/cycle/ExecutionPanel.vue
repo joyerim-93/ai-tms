@@ -4,8 +4,7 @@ import { useRouter } from 'vue-router'
 import { executionApi } from '@/api/cycles'
 import { testCaseApi } from '@/api/testCases'
 import { defectApi } from '@/api/defects'
-import { DEFECT_STATUS, RESULT, formatDateTime } from '@/constants/labels'
-import LabelChip from '@/components/LabelChip.vue'
+import { RESULT, formatDateTime } from '@/constants/labels'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 
@@ -20,7 +19,7 @@ const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
-const defects = ref([]) // 이 수행 항목에 연결된 결함
+const defects = ref([]) // 이 수행 항목에 연결된 이슈
 const saving = ref(false)
 const error = ref('')
 const router = useRouter()
@@ -117,20 +116,20 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
 
           <section class="block">
             <div class="block-head">
-              <div class="label">연결된 결함 ({{ defects.length }})</div>
+              <div class="label">연결된 이슈 ({{ defects.length }})</div>
               <button v-if="canReportDefect()" class="btn btn-sm btn-danger" @click="reportDefect">
-                + 결함 등록
+                + 이슈 등록
               </button>
             </div>
             <ul v-if="defects.length" class="defects">
               <li v-for="d in defects" :key="d.id">
                 <RouterLink :to="`/defects/${d.id}`" class="mono">{{ d.defectCode }}</RouterLink>
                 <span class="defect-title">{{ d.title }}</span>
-                <LabelChip :map="DEFECT_STATUS" :value="d.status" />
+                <StatusBadge :status="d.status" />
               </li>
             </ul>
             <p v-else class="muted small">
-              {{ canReportDefect() ? '실패/Block 결과입니다. 결함을 등록하세요.' : '연결된 결함이 없습니다.' }}
+              {{ canReportDefect() ? '실패/Block 결과입니다. 이슈를 등록하세요.' : '연결된 이슈가 없습니다.' }}
             </p>
           </section>
 
@@ -159,7 +158,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: var(--bg-overlay);
+  background: var(--overlay);
 }
 .panel {
   position: absolute;
@@ -167,7 +166,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   width: 520px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
+  background: var(--surface-card);
   box-shadow: var(--shadow-overlay);
 }
 .panel-header {
@@ -194,8 +193,8 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
 .notice {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  color: var(--status-notrun);
-  background: var(--status-notrun-bg);
+  color: var(--badge-progress-text);
+  background: var(--badge-progress-bg);
   font-size: var(--font-size-sm);
 }
 .block-head {
@@ -251,10 +250,10 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   justify-content: center;
   font-weight: 600;
 }
-.result-pass { color: var(--status-pass); background: var(--status-pass-bg); }
-.result-fail { color: var(--status-fail); background: var(--status-fail-bg); }
-.result-blocked { color: var(--status-blocked); background: var(--status-blocked-bg); }
-.result-not_run { color: var(--status-notrun); background: var(--status-notrun-bg); }
+.result-pass { color: var(--result-success-text); background: var(--result-success-bg); }
+.result-fail { color: var(--result-fail-text); background: var(--result-fail-bg); }
+.result-blocked { color: var(--result-block-text); background: var(--result-block-bg); }
+.result-not_run { color: var(--result-notrun-text); background: var(--result-notrun-bg); }
 .result-btn:hover { filter: brightness(0.95); }
 .history {
   margin: 0;

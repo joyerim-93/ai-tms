@@ -231,7 +231,7 @@ onMounted(async () => {
 
 <style scoped>
 .message {
-  color: var(--status-pass);
+  color: var(--result-success-text);
 }
 .summary {
   display: flex;
@@ -250,7 +250,7 @@ onMounted(async () => {
   gap: var(--space-2);
 }
 .cycle-no {
-  color: var(--color-accent);
+  color: var(--accent);
   font-weight: 700;
 }
 .cycle-title h2 {
@@ -272,7 +272,7 @@ onMounted(async () => {
   margin-bottom: var(--space-2);
 }
 .rate {
-  font-size: var(--font-size-kpi);
+  font-size: var(--font-size-stat);
   font-weight: 700;
 }
 .stat-row {

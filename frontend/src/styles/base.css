@@ -11,12 +11,11 @@ body {
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
   color: var(--text-primary);
-  background: var(--bg-app);
-  transition: background var(--transition), color var(--transition);
+  background: var(--surface-page);
 }
 
 a {
-  color: var(--color-accent);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -27,9 +26,9 @@ h1, h2, h3 {
 
 /* 공통 카드 */
 .card {
-  background: var(--bg-card);
+  background: var(--surface-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
 }
@@ -48,20 +47,20 @@ h1, h2, h3 {
   padding: 0 var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
+  background: var(--surface-card);
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
   transition: background var(--transition);
 }
-.btn:hover { background: var(--bg-hover); }
+.btn:hover { background: var(--surface-hover); }
 .btn-primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
-.btn-primary:hover { background: var(--color-primary-hover); }
-.btn-danger { color: var(--status-fail); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { color: var(--result-fail-text); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { height: 28px; padding: 0 var(--space-2); font-size: var(--font-size-xs); }
 
@@ -74,7 +73,7 @@ h1, h2, h3 {
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-input);
+  background: var(--surface-card);
   color: var(--text-primary);
   font: inherit;
 }
@@ -88,7 +87,7 @@ h1, h2, h3 {
 .select:focus,
 .textarea:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--accent);
 }
 .label {
   display: block;
@@ -99,7 +98,7 @@ h1, h2, h3 {
 }
 .required::after {
   content: ' *';
-  color: var(--status-fail);
+  color: var(--result-fail-text);
 }
 
 /* 테이블 */
@@ -123,7 +122,7 @@ h1, h2, h3 {
   cursor: pointer;
 }
 .table tbody tr.clickable:hover {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 
 /* 칩 (우선순위 등) */
@@ -135,16 +134,16 @@ h1, h2, h3 {
   font-weight: 600;
   line-height: 20px;
 }
-.chip-high { color: var(--priority-high); background: var(--priority-high-bg); }
-.chip-medium { color: var(--priority-medium); background: var(--priority-medium-bg); }
-.chip-low { color: var(--priority-low); background: var(--priority-low-bg); }
-.chip-muted { color: var(--text-muted); background: var(--bg-hover); }
-.chip-accent { color: var(--color-accent); background: var(--color-accent-bg); }
-.chip-pass { color: var(--status-pass); background: var(--status-pass-bg); }
+.chip-high { color: var(--priority-high-text); background: var(--priority-high-bg); }
+.chip-medium { color: var(--priority-medium-text); background: var(--priority-medium-bg); }
+.chip-low { color: var(--priority-low-text); background: var(--priority-low-bg); }
+.chip-muted { color: var(--text-secondary); background: var(--surface-muted); }
+.chip-accent { color: var(--accent); background: var(--accent-soft); }
+.chip-pass { color: var(--result-success-text); background: var(--result-success-bg); }
 
 .muted { color: var(--text-muted); }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); }
-.error-text { color: var(--status-fail); }
+.mono { font-family: var(--font-mono); font-size: var(--font-size-sm); }
+.error-text { color: var(--result-fail-text); }
 .empty {
   padding: var(--space-6);
   text-align: center;

@@ -6,6 +6,7 @@ import { projectApi } from '@/api/projects'
 import { useProject } from '@/composables/useProject'
 import { DEFECT_STATUS, SEVERITY, formatDateTime } from '@/constants/labels'
 import LabelChip from '@/components/LabelChip.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 
 const router = useRouter()
@@ -53,15 +54,15 @@ watch(
 
 <template>
   <div class="page-actions">
-    <button class="btn btn-primary" :disabled="!projectId" @click="router.push('/defects/new')">+ 결함 등록</button>
+    <button class="btn btn-primary" :disabled="!projectId" @click="router.push('/defects/new')">+ 이슈 등록</button>
   </div>
 
   <form class="card filters" @submit.prevent="load()">
-    <input v-model="filter.keyword" class="input keyword" placeholder="결함 코드 / 제목" />
+    <input v-model="filter.keyword" class="input keyword" placeholder="이슈 코드 / 제목" />
     <select v-model="filter.status" class="select" @change="load()">
-      <option value="UNRESOLVED">미해결 (신규·접수·처리중)</option>
+      <option value="UNRESOLVED">미해결 (신규·열림·진행중)</option>
       <option value="">전체 상태</option>
-      <option v-for="(s, key) in DEFECT_STATUS" :key="key" :value="key">{{ s.label }}</option>
+      <option v-for="(label, key) in DEFECT_STATUS" :key="key" :value="key">{{ label }}</option>
     </select>
     <select v-model="filter.severity" class="select" @change="load()">
       <option value="">전체 심각도</option>
@@ -98,7 +99,7 @@ watch(
           <td>{{ d.title }}</td>
           <td><LabelChip :map="SEVERITY" :value="d.severity" /></td>
           <td><PriorityChip :priority="d.priority" /></td>
-          <td><LabelChip :map="DEFECT_STATUS" :value="d.status" /></td>
+          <td><StatusBadge :status="d.status" /></td>
           <td>{{ d.assigneeName ?? '-' }}</td>
           <td>{{ d.reporterName }}</td>
           <td class="small">
@@ -109,7 +110,7 @@ watch(
         </tr>
       </tbody>
     </table>
-    <div v-if="!result.items.length" class="empty">조건에 맞는 결함이 없습니다.</div>
+    <div v-if="!result.items.length" class="empty">조건에 맞는 이슈가 없습니다.</div>
 
     <div v-if="totalPages > 1" class="pagination">
       <button class="btn btn-sm" :disabled="page <= 1" @click="load(page - 1)">이전</button>

@@ -1,0 +1,84 @@
+/*
+ * 디자인 토큰 v3 (docs/04-DESIGN-v3.md) — 컴포넌트는 반드시 var(--*)만 사용, 색상 하드코딩 금지.
+ * 현재 라이트 모드만. 다크모드는 맨 아래 [data-theme='dark'] 블록에 "같은 변수명"으로 값만 추가.
+ */
+
+/* ── 1) 문서 정의 컬러 토큰 (docs/04-DESIGN-v3.md "2. 컬러 토큰" 그대로) ── */
+:root {
+  /* surfaces */
+  --surface-page: #F5F6FA;      /* 페이지 배경 (연한 라벤더 그레이) */
+  --surface-card: #FFFFFF;      /* 카드 배경 */
+  --border: #E7E8EF;            /* 카드 테두리 */
+
+  /* text */
+  --text-primary: #1F2430;      /* 진한 네이비 - 헤딩, 숫자 */
+  --text-secondary: #6B7280;    /* 회색 - 라벨, 보조텍스트 */
+  --text-muted: #9CA3AF;        /* 옅은 회색 - 타임스탬프 등 */
+
+  /* accent */
+  --accent: #4F5FF0;            /* 인디고 블루 - 활성 탭, 링크, 프로그레스바 */
+  --accent-soft: #EEF0FE;       /* 인디고 블루 옅은 배경 */
+
+  /* status badges */
+  --badge-open-bg: #FDECEC;     --badge-open-text: #E0455A;   /* 열림 */
+  --badge-progress-bg: #FEF6E1; --badge-progress-text: #C99A1B; /* 진행중 */
+  --badge-resolved-bg: #E8F9EE; --badge-resolved-text: #1F9D55; /* 해결됨 */
+  --badge-closed-bg: #EEF0F5;   --badge-closed-text: #6B7280;   /* 종료 */
+
+  /* test result badges (테스트수행관리용, 색상 체계 동일 적용) */
+  --result-success-bg: #E8F9EE; --result-success-text: #1F9D55; /* 성공 */
+  --result-fail-bg: #FDECEC;    --result-fail-text: #E0455A;    /* 실패 */
+  --result-block-bg: #FEF6E1;   --result-block-text: #C99A1B;   /* block */
+  --result-notrun-bg: #EEF0F5;  --result-notrun-text: #6B7280;  /* 미수행 */
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+/* ── 2) 확장 토큰 — 문서에 없지만 기존 화면(폼·모달·칩)에 필요한 값. 다크모드 시 함께 재정의 ── */
+:root {
+  --surface-hover: #F0F1F7;     /* 행 hover, 보조 버튼 hover */
+  --surface-muted: #EEF0F5;     /* 프로젝트 탭 트랙 등 옅은 회색 면 */
+  --accent-hover: #3F4FE0;      /* 주 버튼 hover */
+  --on-accent: #FFFFFF;         /* accent 배경 위 글자 */
+  --overlay: rgba(16, 24, 40, 0.35);
+  --shadow-overlay: 0 12px 32px rgba(16, 24, 40, 0.18);
+
+  /* 우선순위 칩 — 결과 색상 재사용 */
+  --priority-high-bg: var(--result-fail-bg);      --priority-high-text: var(--result-fail-text);
+  --priority-medium-bg: var(--result-block-bg);   --priority-medium-text: var(--result-block-text);
+  --priority-low-bg: var(--result-notrun-bg);     --priority-low-text: var(--result-notrun-text);
+}
+
+/* ── 3) 레이아웃·타이포 토큰 (테마 무관) ── */
+:root {
+  --header-height: 64px;
+  --content-max-width: 1120px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Malgun Gothic', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-stat: 32px;
+  --transition: 0.15s ease;
+}
+
+/* ── 다크모드 (추후) — 위 1)·2)의 변수명을 그대로 재정의 ──
+[data-theme='dark'] {
+  --surface-page: ...;
+  --surface-card: ...;
+  ...
+}
+*/

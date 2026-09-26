@@ -40,15 +40,15 @@ const routes = [
       {
         path: 'defects',
         component: () => import('@/views/defect/DefectListView.vue'),
-        meta: { title: '결함관리' },
+        meta: { title: '이슈관리' },
       },
-      { path: 'defects/new', component: DefectForm, meta: { title: '결함 등록' } },
+      { path: 'defects/new', component: DefectForm, meta: { title: '이슈 등록' } },
       {
         path: 'defects/:id(\\d+)',
         component: () => import('@/views/defect/DefectDetailView.vue'),
-        meta: { title: '결함 상세' },
+        meta: { title: '이슈 상세' },
       },
-      { path: 'defects/:id(\\d+)/edit', component: DefectForm, meta: { title: '결함 수정' } },
+      { path: 'defects/:id(\\d+)/edit', component: DefectForm, meta: { title: '이슈 수정' } },
     ],
   },
 ]
