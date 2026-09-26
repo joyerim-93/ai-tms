@@ -151,3 +151,6 @@ CREATE TABLE IF NOT EXISTS defect_comment (
     status_to   VARCHAR(20),
     created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ─────────────────────────────── 코드 채번 시퀀스
+CREATE SEQUENCE IF NOT EXISTS tc_code_seq START WITH 1;

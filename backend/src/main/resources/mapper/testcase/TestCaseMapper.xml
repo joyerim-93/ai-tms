@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.testcase.TestCaseMapper">
+
+    <sql id="searchWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (LOWER(tc.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                  OR LOWER(tc.tc_code) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                  OR LOWER(tc.tags) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+            </if>
+            <if test="module != null and module != ''">AND tc.module = #{module}</if>
+            <if test="priority != null">AND tc.priority = #{priority}</if>
+            <if test="status != null">AND tc.status = #{status}</if>
+        </where>
+    </sql>
+
+    <select id="search" resultType="com.aitms.testcase.TestCase">
+        SELECT tc.*,
+               u.name AS author_name,
+               (SELECT COUNT(*) FROM test_step s WHERE s.test_case_id = tc.id) AS step_count
+          FROM test_case tc
+          LEFT JOIN users u ON u.id = tc.author_id
+        <include refid="searchWhere"/>
+         ORDER BY tc.id DESC
+         LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM test_case tc
+        <include refid="searchWhere"/>
+    </select>
+
+    <select id="findById" resultType="com.aitms.testcase.TestCase">
+        SELECT tc.*, u.name AS author_name
+          FROM test_case tc
+          LEFT JOIN users u ON u.id = tc.author_id
+         WHERE tc.id = #{id}
+    </select>
+
+    <select id="findSteps" resultType="com.aitms.testcase.TestStep">
+        SELECT * FROM test_step WHERE test_case_id = #{testCaseId} ORDER BY step_no
+    </select>
+
+    <select id="findModules" resultType="string">
+        SELECT DISTINCT module FROM test_case WHERE module IS NOT NULL AND module != '' ORDER BY module
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO test_case (tc_code, title, module, precondition, priority, status, tags, author_id)
+        VALUES (CONCAT('TC-', LPAD(CAST(NEXT VALUE FOR tc_code_seq AS VARCHAR), 5, '0')),
+                #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags}, #{authorId})
+    </insert>
+
+    <update id="update">
+        UPDATE test_case
+           SET title        = #{title},
+               module       = #{module},
+               precondition = #{precondition},
+               priority     = #{priority},
+               status       = #{status},
+               tags         = #{tags},
+               version      = version + 1,
+               updated_at   = CURRENT_TIMESTAMP
+         WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM test_case WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteSteps">
+        DELETE FROM test_step WHERE test_case_id = #{testCaseId}
+    </delete>
+
+    <insert id="insertSteps">
+        INSERT INTO test_step (test_case_id, step_no, action, expected_result) VALUES
+        <foreach collection="steps" item="s" separator=",">
+            (#{s.testCaseId}, #{s.stepNo}, #{s.action}, #{s.expectedResult})
+        </foreach>
+    </insert>
+
+    <select id="countExecutions" resultType="int">
+        SELECT COUNT(*) FROM test_execution WHERE test_case_id = #{testCaseId}
+    </select>
+</mapper>
