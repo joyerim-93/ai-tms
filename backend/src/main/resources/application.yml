@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: ai-tms
+  datasource:
+    # H2 파일 모드 — DB 파일은 backend/data/ 아래 생성 (git 제외)
+    url: jdbc:h2:file:./data/aitms;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always   # schema.sql 추가 시 기동마다 실행 (CREATE TABLE IF NOT EXISTS 사용)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.aitms.domain
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: 8080
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
