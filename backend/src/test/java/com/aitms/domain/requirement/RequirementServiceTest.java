@@ -26,10 +26,14 @@ class RequirementServiceTest {
 
         assertThat(req.getReqCode()).isEqualTo("REQ-001");
         assertThat(req.getAtomicCount()).isEqualTo(3);
-        assertThat(req.getTestCaseCount()).isEqualTo(9);   // TC 1~7, 10, 11
+        assertThat(req.getTestCaseCount()).isEqualTo(9);   // TC 1~7, 10, 11 (TC 10은 두 원자 요구사항에 걸쳐도 1건)
+        assertThat(req.getCoveredAtomicCount()).isEqualTo(3);
         assertThat(req.getAtomics()).extracting(AtomicRequirement::getType)
                 .containsExactly(RequirementType.AMOUNT_RANGE, RequirementType.RATE_RANGE, RequirementType.PERIOD_CONDITION);
         assertThat(req.getAtomics().get(0).getMaxValue()).isEqualByComparingTo("3000000");
+        // Traceability: 거치기간 원자 요구사항(3)을 커버하는 TC
+        assertThat(req.getAtomics().get(2).getTestCases()).extracting(CoveringTestCase::getTcCode)
+                .containsExactly("TC-00005", "TC-00006", "TC-00007", "TC-00010");
     }
 
     @Test
@@ -52,5 +56,12 @@ class RequirementServiceTest {
         assertThat(ruleCatalogService.findAll()).hasSize(4);
         assertThat(ruleCatalogService.findByType(RequirementType.AMOUNT_RANGE)).singleElement()
                 .satisfies(r -> assertThat(r.getTemplate()).contains("{min}"));
+    }
+
+    @Test
+    void 프로젝트_원자요구사항_목록은_원문_코드와_함께_조회된다() {
+        assertThat(service.atomicRefs(1L)).extracting(AtomicRequirementRef::getAtomicRequirementId).containsExactly(1L, 2L, 3L);
+        assertThat(service.atomicRefs(1L).get(0).getReqCode()).isEqualTo("REQ-001");
+        assertThat(service.atomicRefs(2L)).singleElement().satisfies(a -> assertThat(a.getAtomicRequirementId()).isEqualTo(4L));
     }
 }

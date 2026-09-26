@@ -33,6 +33,7 @@ public class TestCaseService {
         TestCase tc = mapper.findById(id)
                 .orElseThrow(() -> ApiException.notFound("테스트케이스를 찾을 수 없습니다. id=" + id));
         tc.setSteps(mapper.findSteps(id));
+        tc.setRequirements(mapper.findRequirements(id));
         return tc;
     }
 
@@ -53,6 +54,7 @@ public class TestCaseService {
         tc.setReviewStatus(ReviewStatus.APPROVED);
         mapper.insert(tc);
         saveSteps(tc.getId(), req.steps());
+        saveRequirementLinks(tc.getId(), tc.getProjectId(), req.atomicRequirementIds());
         return get(tc.getId());
     }
 
@@ -65,6 +67,8 @@ public class TestCaseService {
         mapper.update(tc);
         mapper.deleteSteps(id);
         saveSteps(id, req.steps());
+        mapper.deleteRequirementLinks(id);
+        saveRequirementLinks(id, tc.getProjectId(), req.atomicRequirementIds());
         return get(id);
     }
 
@@ -78,7 +82,7 @@ public class TestCaseService {
 
     /**
      * 다른 프로젝트의 승인된 TC를 현재 프로젝트에 새 row로 복제 ('중앙관리'는 공유가 아니라 복제로 구현).
-     * origin_project_id = 원본 TC의 프로젝트. 요구사항 연결은 프로젝트별이라 복사하지 않음.
+     * origin_project_id = 원본 TC의 프로젝트. 요구사항 링크는 프로젝트별이라 복사하지 않음.
      *
      * @return 복제된 TC 목록 (같은 프로젝트·미승인·폐기 TC는 건너뜀)
      */
@@ -139,8 +143,19 @@ public class TestCaseService {
         tc.setStatus(req.status() != null ? req.status() : TestCaseStatus.ACTIVE);
         tc.setTags(blankToNull(req.tags()));
         tc.setTechnique(req.technique());
-        tc.setAtomicRequirementId(req.atomicRequirementId());
         return tc;
+    }
+
+    /** 다대다 링크 저장 — 같은 프로젝트의 원자 요구사항만 허용 */
+    private void saveRequirementLinks(Long testCaseId, Long projectId, List<Long> atomicIds) {
+        if (atomicIds == null || atomicIds.isEmpty()) {
+            return;
+        }
+        List<Long> distinct = atomicIds.stream().distinct().toList();
+        if (mapper.countAtomicsInProject(distinct, projectId) != distinct.size()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "같은 프로젝트의 요구사항만 연결할 수 있습니다.");
+        }
+        mapper.insertRequirementLinks(testCaseId, distinct);
     }
 
     private void saveSteps(Long testCaseId, List<TestCaseRequest.StepRequest> steps) {

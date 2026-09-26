@@ -88,7 +88,7 @@ class TestCaseFolderServiceTest {
         assertThat(copy.getFolderName()).isEqualTo("우대금리");
         assertThat(copy.getOriginProjectId()).isEqualTo(2L);
         assertThat(copy.getOriginProjectName()).isEqualTo("KB 자유적금 갈아타기 이벤트");
-        assertThat(copy.getAtomicRequirementId()).isNull();     // 요구사항 연결은 복사 안 함
+        assertThat(copy.getRequirements()).isEmpty();            // 요구사항 링크는 복사 안 함
         assertThat(copy.getSteps()).hasSize(3);
         assertThat(testCaseService.get(12L).getProjectId()).isEqualTo(2L); // 원본은 그대로
     }

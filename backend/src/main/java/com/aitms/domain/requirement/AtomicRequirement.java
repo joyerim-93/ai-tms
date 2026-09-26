@@ -2,6 +2,8 @@ package com.aitms.domain.requirement;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -21,4 +23,5 @@ public class AtomicRequirement {
     private LocalDateTime createdAt;
 
     private int testCaseCount;   // 연결된 TC 수
+    private List<CoveringTestCase> testCases = new ArrayList<>();  // 상세 조회 시 (Traceability)
 }

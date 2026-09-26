@@ -22,6 +22,7 @@ public class Requirement {
     private LocalDateTime updatedAt;
 
     private int atomicCount;           // 목록 조회용
-    private int testCaseCount;         // 원자 요구사항에 연결된 TC 수
+    private int testCaseCount;         // 원자 요구사항을 커버하는 TC 수 (중복 제거)
+    private int coveredAtomicCount;    // TC가 1건 이상 연결된 원자 요구사항 수
     private List<AtomicRequirement> atomics;  // 상세 조회용
 }

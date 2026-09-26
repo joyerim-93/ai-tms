@@ -1,6 +1,9 @@
 package com.aitms.domain.requirement;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +30,16 @@ public class RequirementService {
     public Requirement get(Long id) {
         Requirement req = mapper.findById(id)
                 .orElseThrow(() -> ApiException.notFound("요구사항을 찾을 수 없습니다. id=" + id));
-        req.setAtomics(mapper.findAtomics(id));
+        List<AtomicRequirement> atomics = mapper.findAtomics(id);
+        Map<Long, AtomicRequirement> byId = atomics.stream()
+                .collect(Collectors.toMap(AtomicRequirement::getId, Function.identity()));
+        mapper.findCoveringTestCases(id).forEach(tc -> byId.get(tc.getAtomicRequirementId()).getTestCases().add(tc));
+        req.setAtomics(atomics);
         return req;
+    }
+
+    public List<AtomicRequirementRef> atomicRefs(Long projectId) {
+        return mapper.findAtomicRefsByProject(projectId);
     }
 
     @Transactional

@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS test_case (
     technique             VARCHAR(30)
                           CHECK (technique IN ('BOUNDARY_VALUE', 'EQUIVALENCE_PARTITION', 'DECISION_TABLE', 'EXPLORATORY')),
     review_status         VARCHAR(10)  NOT NULL DEFAULT 'APPROVED' CHECK (review_status IN ('DRAFT', 'APPROVED', 'REJECTED')),
-    atomic_requirement_id BIGINT       REFERENCES atomic_requirement (id) ON DELETE SET NULL,
     origin_project_id     BIGINT       REFERENCES project (id),  -- RAG 추천·'다른 프로젝트에서 가져오기' 복제 시 원본 프로젝트
     reviewed_by           BIGINT       REFERENCES users (id),
     reviewed_at           TIMESTAMP,
@@ -111,7 +110,17 @@ CREATE TABLE IF NOT EXISTS test_case (
 );
 CREATE INDEX IF NOT EXISTS idx_test_case_module ON test_case (module);
 CREATE INDEX IF NOT EXISTS idx_test_case_project_folder ON test_case (project_id, folder_id);
-CREATE INDEX IF NOT EXISTS idx_test_case_atomic ON test_case (atomic_requirement_id);
+
+-- TC ↔ 원자 요구사항 다대다 (Zephyr Traceability, docs/07-schema-add-requirement-link.sql)
+-- 같은 프로젝트의 요구사항만 연결 (서비스에서 검증)
+CREATE TABLE IF NOT EXISTS test_case_requirement_link (
+    id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+    test_case_id          BIGINT    NOT NULL REFERENCES test_case (id) ON DELETE CASCADE,
+    atomic_requirement_id BIGINT    NOT NULL REFERENCES atomic_requirement (id) ON DELETE CASCADE,
+    created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (test_case_id, atomic_requirement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tc_req_link_atomic ON test_case_requirement_link (atomic_requirement_id);
 
 CREATE TABLE IF NOT EXISTS test_step (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,

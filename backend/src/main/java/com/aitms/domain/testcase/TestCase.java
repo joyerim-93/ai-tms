@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.aitms.common.Priority;
+import com.aitms.domain.requirement.AtomicRequirementRef;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -35,10 +36,8 @@ public class TestCase {
     private TcSource source;
     private TestTechnique technique;
     private ReviewStatus reviewStatus;
-    private Long atomicRequirementId;
-    private String atomicText;         // 조인
-    private Long requirementId;        // 조인 (원자 요구사항의 원문 요구사항)
-    private String reqCode;            // 조인
+    private List<AtomicRequirementRef> requirements; // 상세 조회: 검증하는 요구사항 (다대다)
+    private int requirementCount;                    // 목록 조회: 연결 요구사항 수
     private Long originProjectId;
     private String originProjectName;  // 조인
     private Long reviewedBy;

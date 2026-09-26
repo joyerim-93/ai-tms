@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import com.aitms.domain.requirement.AtomicRequirementRef;
+
 @Mapper
 public interface TestCaseMapper {
 
@@ -34,4 +36,14 @@ public interface TestCaseMapper {
     void insertSteps(@Param("steps") List<TestStep> steps);
 
     int countExecutions(Long testCaseId);
+
+    // ── 요구사항 다대다 링크
+    List<AtomicRequirementRef> findRequirements(Long testCaseId);
+
+    void deleteRequirementLinks(Long testCaseId);
+
+    void insertRequirementLinks(@Param("testCaseId") Long testCaseId, @Param("atomicIds") List<Long> atomicIds);
+
+    /** 주어진 원자 요구사항 중 해당 프로젝트 소속 개수 (교차 프로젝트 링크 방지) */
+    int countAtomicsInProject(@Param("atomicIds") List<Long> atomicIds, @Param("projectId") Long projectId);
 }

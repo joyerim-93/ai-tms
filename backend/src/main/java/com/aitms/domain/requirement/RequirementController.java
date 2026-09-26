@@ -29,6 +29,12 @@ public class RequirementController {
         return service.findByProject(projectId);
     }
 
+    /** 프로젝트의 원자 요구사항 전체 — TC 폼 '검증하는 요구사항' 선택용 */
+    @GetMapping("/atomics")
+    public List<AtomicRequirementRef> atomics(@RequestParam Long projectId) {
+        return service.atomicRefs(projectId);
+    }
+
     @GetMapping("/{id}")
     public Requirement get(@PathVariable Long id) {
         return service.get(id);

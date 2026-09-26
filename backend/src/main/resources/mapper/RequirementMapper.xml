@@ -5,9 +5,12 @@
     <sql id="selectWithCounts">
         SELECT r.*,
                (SELECT COUNT(*) FROM atomic_requirement a WHERE a.requirement_id = r.id) AS atomic_count,
-               (SELECT COUNT(*) FROM test_case tc
-                  JOIN atomic_requirement a ON a.id = tc.atomic_requirement_id
-                 WHERE a.requirement_id = r.id) AS test_case_count
+               (SELECT COUNT(DISTINCT l.test_case_id) FROM test_case_requirement_link l
+                  JOIN atomic_requirement a ON a.id = l.atomic_requirement_id
+                 WHERE a.requirement_id = r.id) AS test_case_count,
+               (SELECT COUNT(*) FROM atomic_requirement a
+                 WHERE a.requirement_id = r.id
+                   AND EXISTS (SELECT 1 FROM test_case_requirement_link l WHERE l.atomic_requirement_id = a.id)) AS covered_atomic_count
           FROM requirement r
     </sql>
 
@@ -24,10 +27,29 @@
 
     <select id="findAtomics" resultType="com.aitms.domain.requirement.AtomicRequirement">
         SELECT a.*,
-               (SELECT COUNT(*) FROM test_case tc WHERE tc.atomic_requirement_id = a.id) AS test_case_count
+               (SELECT COUNT(*) FROM test_case_requirement_link l WHERE l.atomic_requirement_id = a.id) AS test_case_count
           FROM atomic_requirement a
          WHERE a.requirement_id = #{requirementId}
          ORDER BY a.id
+    </select>
+
+    <!-- 다대다: 원문 요구사항 → 원자 요구사항 → 링크 → TC -->
+    <select id="findCoveringTestCases" resultType="com.aitms.domain.requirement.CoveringTestCase">
+        SELECT l.atomic_requirement_id, tc.id, tc.tc_code, tc.title, tc.source, tc.review_status, tc.status
+          FROM test_case_requirement_link l
+          JOIN atomic_requirement a ON a.id = l.atomic_requirement_id
+          JOIN test_case tc         ON tc.id = l.test_case_id
+         WHERE a.requirement_id = #{requirementId}
+         ORDER BY l.atomic_requirement_id, tc.tc_code
+    </select>
+
+    <select id="findAtomicRefsByProject" resultType="com.aitms.domain.requirement.AtomicRequirementRef">
+        SELECT a.id AS atomic_requirement_id, a.atomic_text, a.type,
+               r.id AS requirement_id, r.req_code, r.title AS requirement_title
+          FROM atomic_requirement a
+          JOIN requirement r ON r.id = a.requirement_id
+         WHERE r.project_id = #{projectId}
+         ORDER BY r.req_code, a.id
     </select>
 
     <!-- 요구사항 코드: 프로젝트 내 REQ-001 순번 -->

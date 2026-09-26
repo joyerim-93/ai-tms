@@ -87,12 +87,10 @@ class TestCaseServiceTest {
 
     @Test
     void AI추천_DRAFT_TC를_승인하면_검토자와_일시가_기록된다() {
-        // 샘플 TC-00004: RULE 출처 DRAFT, 원자 요구사항(가입금액) 연결
+        // 샘플 TC-00004: RULE 출처 DRAFT
         TestCase draft = service.get(4L);
         assertThat(draft.getReviewStatus()).isEqualTo(ReviewStatus.DRAFT);
         assertThat(draft.getSource()).isEqualTo(TcSource.RULE);
-        assertThat(draft.getReqCode()).isEqualTo("REQ-001");
-        assertThat(draft.getAtomicText()).contains("가입금액");
 
         TestCase approved = service.review(4L, ReviewStatus.APPROVED);
 
@@ -109,5 +107,40 @@ class TestCaseServiceTest {
 
         assertThat(service.search(search).items()).extracting(TestCase::getTcCode).containsExactly("TC-00009", "TC-00008");
         assertThat(service.search(search).items().get(0).getOriginProjectName()).isEqualTo("KB 자유적금 갈아타기 이벤트");
+    }
+
+    // ── 요구사항 다대다
+
+    private TestCaseRequest linked(String title, List<Long> atomicIds) {
+        return new TestCaseRequest(1L, null, title, null, null, Priority.MEDIUM, null, null, null, atomicIds, List.of());
+    }
+
+    @Test
+    void 샘플_TC10은_두_요구사항을_검증하고_TC8_9는_링크가_없다() {
+        assertThat(service.get(10L).getRequirements()).extracting(r -> r.getAtomicRequirementId()).containsExactly(1L, 3L);
+        assertThat(service.get(10L).getRequirements().get(0).getReqCode()).isEqualTo("REQ-001");
+        assertThat(service.get(8L).getRequirements()).isEmpty();
+        assertThat(service.get(9L).getRequirements()).isEmpty();
+    }
+
+    @Test
+    void 여러_요구사항을_연결하고_수정하면_링크가_통째로_교체된다() {
+        TestCase tc = service.create(linked("복합 검증", List.of(1L, 2L, 2L)));   // 중복 id는 1건으로
+        assertThat(tc.getRequirements()).hasSize(2);
+
+        TestCase updated = service.update(tc.getId(), linked("복합 검증", List.of(3L)));
+        assertThat(updated.getRequirements()).extracting(r -> r.getAtomicRequirementId()).containsExactly(3L);
+
+        TestCaseSearch search = new TestCaseSearch();
+        search.setAtomicRequirementId(3L);
+        assertThat(service.search(search).items()).extracting(TestCase::getId).contains(updated.getId(), 5L, 10L);
+        assertThat(service.search(search).items()).filteredOn(t -> t.getId().equals(10L))
+                .singleElement().satisfies(t -> assertThat(t.getRequirementCount()).isEqualTo(2));
+    }
+
+    @Test
+    void 다른_프로젝트_요구사항은_연결할_수_없다() {
+        // 원자 요구사항 4는 프로젝트 2 소속
+        assertThatThrownBy(() -> service.create(linked("x", List.of(1L, 4L)))).isInstanceOf(ApiException.class);
     }
 }
