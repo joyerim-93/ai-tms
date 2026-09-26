@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.execution.TestCycleMapper">
+
+    <!-- 결과별 집계를 서브쿼리로 붙임 (H2는 GROUP BY 함수종속 미지원) -->
+    <sql id="selectWithStats">
+        SELECT c.*,
+               COALESCE(s.total_count, 0)   AS total_count,
+               COALESCE(s.pass_count, 0)    AS pass_count,
+               COALESCE(s.fail_count, 0)    AS fail_count,
+               COALESCE(s.blocked_count, 0) AS blocked_count,
+               COALESCE(s.not_run_count, 0) AS not_run_count
+          FROM test_cycle c
+          LEFT JOIN (SELECT cycle_id,
+                            COUNT(*) AS total_count,
+                            SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END)    AS pass_count,
+                            SUM(CASE WHEN result = 'FAIL' THEN 1 ELSE 0 END)    AS fail_count,
+                            SUM(CASE WHEN result = 'BLOCKED' THEN 1 ELSE 0 END) AS blocked_count,
+                            SUM(CASE WHEN result = 'NOT_RUN' THEN 1 ELSE 0 END) AS not_run_count
+                       FROM test_execution
+                      GROUP BY cycle_id) s ON s.cycle_id = c.id
+    </sql>
+
+    <select id="findByProject" resultType="com.aitms.execution.TestCycle">
+        <include refid="selectWithStats"/>
+         WHERE c.project_id = #{projectId}
+         ORDER BY c.cycle_no DESC
+    </select>
+
+    <select id="findById" resultType="com.aitms.execution.TestCycle">
+        <include refid="selectWithStats"/>
+         WHERE c.id = #{id}
+    </select>
+
+    <!-- 차수 번호는 프로젝트 내 max+1 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO test_cycle (project_id, cycle_no, name, start_date, end_date, status)
+        VALUES (#{projectId},
+                (SELECT COALESCE(MAX(cycle_no), 0) + 1 FROM test_cycle WHERE project_id = #{projectId}),
+                #{name}, #{startDate}, #{endDate}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE test_cycle
+           SET name       = #{name},
+               start_date = #{startDate},
+               end_date   = #{endDate},
+               status     = #{status},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE test_cycle SET status = #{status}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM test_cycle WHERE id = #{id}
+    </delete>
+
+    <select id="countHistory" resultType="int">
+        SELECT COUNT(*)
+          FROM test_execution_history h
+          JOIN test_execution e ON e.id = h.execution_id
+         WHERE e.cycle_id = #{cycleId}
+    </select>
+</mapper>
