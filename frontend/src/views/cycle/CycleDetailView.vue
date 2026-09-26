@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { cycleApi } from '@/api/cycles'
+import { cycleApi, executionApi } from '@/api/cycles'
 import { projectApi } from '@/api/projects'
 import { CYCLE_STATUS, RESULT, formatDateTime, progressRate } from '@/constants/labels'
 import ProgressBar from '@/components/ProgressBar.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import PriorityChip from '@/components/PriorityChip.vue'
+import ResultSelect from '@/components/ResultSelect.vue'
+import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
+import { formatParam } from '@/utils/params'
 import TcPickerModal from './TcPickerModal.vue'
 import ExecutionPanel from './ExecutionPanel.vue'
 
@@ -88,6 +90,62 @@ function removeExecution(e) {
   })
 }
 
+// ── Zephyr식 행 구성: 파라미터화 TC는 상위 행(하위 집계) + 데이터셋 하위 행
+const collapsed = ref(new Set()) // 접힌 파라미터화 TC(testCaseId)
+const rows = computed(() => {
+  const groups = []
+  for (const e of executions.value) {
+    const last = groups[groups.length - 1]
+    if (e.datasetId && last?.type === 'param' && last.testCaseId === e.testCaseId) {
+      last.children.push(e)
+    } else if (e.datasetId) {
+      groups.push({ type: 'param', key: `p${e.testCaseId}`, testCaseId: e.testCaseId, head: e, children: [e] })
+    } else {
+      groups.push({ type: 'single', key: `s${e.id}`, exec: e })
+    }
+  }
+  return groups
+})
+
+/** "4개 행 중 3개 성공 · 1개 실패" */
+function summarize(children) {
+  const count = (r) => children.filter((c) => c.result === r).length
+  const parts = [['PASS', '성공'], ['FAIL', '실패'], ['BLOCKED', 'Block'], ['NOT_RUN', '미수행']]
+    .map(([r, label]) => [count(r), label])
+    .filter(([n]) => n > 0)
+    .map(([n, label]) => `${n}개 ${label}`)
+  return `${children.length}개 행 중 ${parts.join(' · ')}`
+}
+const groupAssignee = (children) => {
+  const names = [...new Set(children.map((c) => c.assigneeName ?? '미지정'))]
+  return names.length === 1 ? names[0] : `${names.length}명`
+}
+const latestRun = (children) => children.map((c) => c.executedAt).filter(Boolean).sort().at(-1)
+const paramChips = (e) => Object.entries(e.datasetParams ?? {}).map(([k, v]) => `${k}=${formatParam(v)}`)
+
+function toggleCollapse(testCaseId) {
+  const next = new Set(collapsed.value)
+  next.has(testCaseId) ? next.delete(testCaseId) : next.add(testCaseId)
+  collapsed.value = next
+}
+function toggleGroup(children) {
+  const next = new Set(selected.value)
+  const allOn = children.every((c) => next.has(c.id))
+  children.forEach((c) => (allOn ? next.delete(c.id) : next.add(c.id)))
+  selected.value = next
+}
+
+// ── 결과 셀 인라인 수정 (코멘트 없이 결과만 기록 → 이력 1건)
+const savingId = ref(null)
+async function changeResult(e, result) {
+  savingId.value = e.id
+  await run(async () => {
+    await executionApi.record(e.id, result, '')
+    await reload()
+  })
+  savingId.value = null
+}
+
 async function onAdded(count) {
   showPicker.value = false
   await reload()
@@ -163,49 +221,107 @@ onMounted(async () => {
         </div>
       </div>
 
-      <table class="table">
+      <table class="table run-table">
         <thead>
           <tr>
             <th style="width: 36px"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th>
-            <th style="width: 110px">코드</th>
+            <th style="width: 110px">TC Key</th>
             <th>제목</th>
-            <th style="width: 110px">모듈</th>
-            <th style="width: 80px">우선순위</th>
+            <th style="width: 110px">결과</th>
             <th style="width: 90px">담당자</th>
-            <th style="width: 80px">결과</th>
-            <th style="width: 150px">최종 수행</th>
-            <th style="width: 44px"></th>
+            <th style="width: 130px">실행일시</th>
+            <th style="width: 200px">코멘트</th>
+            <th style="width: 40px"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="e in executions" :key="e.id" class="clickable" @click="panelExecId = e.id">
-            <td @click.stop><input type="checkbox" :checked="selected.has(e.id)" @change="toggle(e.id)" /></td>
-            <td class="mono">{{ e.tcCode }}</td>
-            <td>
-              {{ e.tcTitle }}
-              <span v-if="e.tcVersion !== e.currentTcVersion" class="chip chip-medium" title="차수 등록 후 TC가 수정됨">
-                TC 변경됨
-              </span>
-            </td>
-            <td>{{ e.tcModule ?? '-' }}</td>
-            <td><PriorityChip :priority="e.tcPriority" /></td>
-            <td>{{ e.assigneeName ?? '-' }}</td>
-            <td><StatusBadge :status="e.result" /></td>
-            <td class="muted small">
-              <template v-if="e.executedAt">{{ e.executedByName }} · {{ formatDateTime(e.executedAt) }}</template>
-              <template v-else>-</template>
-            </td>
-            <td @click.stop>
-              <button
-                v-if="!closed && !e.executedAt"
-                class="btn btn-sm btn-danger"
-                title="차수에서 제외"
-                @click="removeExecution(e)"
-              >
-                ✕
-              </button>
-            </td>
-          </tr>
+          <template v-for="g in rows" :key="g.key">
+            <!-- 일반 TC: 1행 -->
+            <tr v-if="g.type === 'single'" class="clickable" @click="panelExecId = g.exec.id">
+              <td @click.stop><input type="checkbox" :checked="selected.has(g.exec.id)" @change="toggle(g.exec.id)" /></td>
+              <td><TestCaseKeyBadge :code="g.exec.tcCode" :to="`/test-cases/${g.exec.testCaseId}`" /></td>
+              <td>
+                {{ g.exec.tcTitle }}
+                <span v-if="g.exec.tcVersion !== g.exec.currentTcVersion" class="chip chip-medium" title="차수 등록 후 TC가 수정됨">
+                  TC 변경됨
+                </span>
+              </td>
+              <td>
+                <ResultSelect
+                  :result="g.exec.result"
+                  :disabled="closed"
+                  :saving="savingId === g.exec.id"
+                  @change="changeResult(g.exec, $event)"
+                />
+              </td>
+              <td>{{ g.exec.assigneeName ?? '-' }}</td>
+              <td class="muted small">{{ g.exec.executedAt ? formatDateTime(g.exec.executedAt) : '-' }}</td>
+              <td class="comment small" :title="g.exec.lastComment ?? ''">{{ g.exec.lastComment ?? '' }}</td>
+              <td @click.stop>
+                <button v-if="!closed && !g.exec.executedAt" class="btn btn-sm btn-danger" title="차수에서 제외" @click="removeExecution(g.exec)">✕</button>
+              </td>
+            </tr>
+
+            <!-- 파라미터화 TC: 상위 행(하위 집계) -->
+            <template v-else>
+              <tr class="group-row" @click="toggleCollapse(g.testCaseId)">
+                <td @click.stop>
+                  <input
+                    type="checkbox"
+                    :checked="g.children.every((c) => selected.has(c.id))"
+                    @change="toggleGroup(g.children)"
+                  />
+                </td>
+                <td>
+                  <span class="fold">{{ collapsed.has(g.testCaseId) ? '▸' : '▾' }}</span>
+                  <TestCaseKeyBadge :code="g.head.tcCode" :to="`/test-cases/${g.testCaseId}`" />
+                </td>
+                <td>
+                  {{ g.head.tcTitle }}
+                  <span class="chip chip-accent">🔢 {{ g.children.length }}</span>
+                  <div class="group-summary">{{ summarize(g.children) }}</div>
+                </td>
+                <td>
+                  <div class="mini-bar" :title="summarize(g.children)">
+                    <span
+                      v-for="c in g.children"
+                      :key="c.id"
+                      :class="`seg-${c.result.toLowerCase()}`"
+                    />
+                  </div>
+                </td>
+                <td>{{ groupAssignee(g.children) }}</td>
+                <td class="muted small">{{ latestRun(g.children) ? formatDateTime(latestRun(g.children)) : '-' }}</td>
+                <td />
+                <td />
+              </tr>
+              <!-- 데이터셋 하위 행 -->
+              <template v-if="!collapsed.has(g.testCaseId)">
+                <tr v-for="c in g.children" :key="c.id" class="clickable child-row" @click="panelExecId = c.id">
+                  <td @click.stop><input type="checkbox" :checked="selected.has(c.id)" @change="toggle(c.id)" /></td>
+                  <td class="indent muted">└ {{ c.datasetOrder }}</td>
+                  <td>
+                    <span class="row-label">{{ c.datasetLabel }}</span>
+                    <span v-for="p in paramChips(c)" :key="p" class="param mono">{{ p }}</span>
+                  </td>
+                  <td>
+                    <ResultSelect
+                      :result="c.result"
+                      :disabled="closed"
+                      :saving="savingId === c.id"
+                      @change="changeResult(c, $event)"
+                    />
+                  </td>
+                  <td>{{ c.assigneeName ?? '-' }}</td>
+                  <td class="muted small">{{ c.executedAt ? formatDateTime(c.executedAt) : '-' }}</td>
+                  <td class="comment small" :title="c.lastComment ?? ''">{{ c.lastComment ?? '' }}</td>
+                  <td @click.stop>
+                    <button v-if="!closed && !c.executedAt" class="btn btn-sm btn-danger" title="차수에서 제외" @click="removeExecution(c)">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </template>
+          </template>
         </tbody>
       </table>
       <div v-if="!executions.length" class="empty">등록된 테스트케이스가 없습니다. ‘TC 추가’로 저장소에서 가져오세요.</div>
@@ -298,6 +414,66 @@ onMounted(async () => {
 .filters .select,
 .actions .select {
   width: 140px;
+}
+.group-row {
+  background: var(--surface-page);
+  cursor: pointer;
+}
+.group-row:hover {
+  background: var(--surface-hover);
+}
+.fold {
+  display: inline-block;
+  width: 14px;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+.group-summary {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+.mini-bar {
+  display: flex;
+  gap: 2px;
+  width: 90px;
+  height: 8px;
+}
+.mini-bar span {
+  flex: 1;
+  border-radius: 2px;
+}
+.seg-pass { background: var(--result-success-text); }
+.seg-fail { background: var(--result-fail-text); }
+.seg-blocked { background: var(--result-block-text); }
+.seg-not_run { background: var(--result-notrun-bg); }
+.child-row td {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.indent {
+  padding-left: var(--space-6) !important;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+.row-label {
+  margin-right: var(--space-2);
+}
+.param {
+  display: inline-block;
+  margin-right: var(--space-1);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+.comment {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
 }
 .small {
   font-size: var(--font-size-xs);

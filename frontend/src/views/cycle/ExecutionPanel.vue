@@ -7,6 +7,9 @@ import { defectApi } from '@/api/defects'
 import { RESULT, formatDateTime } from '@/constants/labels'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
+import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
+import DatasetTable from '@/components/DatasetTable.vue'
+import { substitute } from '@/utils/params'
 
 // 우측 슬라이드 패널: TC 절차 확인 + 결과 입력 + 수행 이력
 const props = defineProps({
@@ -36,6 +39,10 @@ async function load() {
   defects.value = linked.items
 }
 
+// 파라미터화 TC의 데이터셋 행이면 {변수}를 이 행의 값으로 치환해서 표시
+const stepText = (text) =>
+  exec.value?.datasetId ? substitute(text, exec.value.datasetParams ?? {}, exec.value.datasetExpected) : text
+
 const canReportDefect = () => ['FAIL', 'BLOCKED'].includes(exec.value?.result)
 const reportDefect = () => router.push(`/defects/new?executionId=${props.executionId}`)
 
@@ -62,8 +69,9 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
     <aside class="panel">
       <header class="panel-header">
         <div v-if="exec">
-          <span class="mono muted">{{ exec.tcCode }}</span>
+          <TestCaseKeyBadge :code="exec.tcCode" />
           <h3>{{ exec.tcTitle }}</h3>
+          <div v-if="exec.datasetId" class="dataset-label">🔢 {{ exec.datasetLabel }}</div>
         </div>
         <button class="btn btn-sm" @click="emit('close')">✕</button>
       </header>
@@ -86,14 +94,22 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
           </section>
 
           <section class="block">
-            <div class="label">테스트 단계</div>
+            <div class="label">
+              테스트 단계
+              <span v-if="exec.datasetId" class="chip chip-accent">‘{{ exec.datasetLabel }}’ 값으로 치환됨</span>
+            </div>
             <ol v-if="tc.steps.length" class="steps">
               <li v-for="s in tc.steps" :key="s.id">
-                <div class="pre">{{ s.action }}</div>
-                <div v-if="s.expectedResult" class="expected pre">→ {{ s.expectedResult }}</div>
+                <div class="pre">{{ stepText(s.action) }}</div>
+                <div v-if="s.expectedResult" class="expected pre">→ {{ stepText(s.expectedResult) }}</div>
               </li>
             </ol>
             <p v-else class="muted">등록된 단계가 없습니다.</p>
+          </section>
+
+          <section v-if="exec.datasetId && tc.datasets.length" class="block">
+            <div class="label">데이터셋 <span class="muted">(현재 행 강조)</span></div>
+            <DatasetTable :rows="tc.datasets" :highlight-id="exec.datasetId" />
           </section>
 
           <section v-if="!readonly" class="block record">
@@ -189,6 +205,12 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+.dataset-label {
+  margin-top: var(--space-1);
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }
 .notice {
   padding: var(--space-2) var(--space-3);

@@ -48,7 +48,7 @@ ai-tms/
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
       ├─ components/             AppHeader(메뉴 + 우측 ProjectSelector), ProjectSelector(전환 전용 드롭다운), StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
-      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀), TestCaseKeyBadge(Key 뱃지), DatasetTable(스프레드시트형 데이터셋 — 편집/읽기전용·강조 행)
+      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀), TestCaseKeyBadge(Key 뱃지), ResultSelect(결과 뱃지 클릭 → 드롭다운 즉시 저장), DatasetTable(스프레드시트형 데이터셋 — 편집/읽기전용·강조 행)
       ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
       ├─ utils/params.js         파라미터화 {변수} 치환(substitute)·변수 추출·셀 값 파싱·braced()
       ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·Form + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
@@ -185,6 +185,9 @@ ai-tms/
 - 화면(Zephyr 정보 배치, 톤은 v3 유지): TC 목록 `Key | 제목(🔢 N) | 폴더 | 기법 | 출처 | 상태(검토) | 데이터셋`.
   TC 상세 탭(`?tab=`): 개요 | 테스트 스크립트(데이터 행 선택 시 치환 미리보기) | 데이터셋(DatasetTable 셀 편집, 포커스 아웃 저장, 행/변수 열 추가·삭제) | 실행 이력 | 연결된 요구사항(추가/제거).
   폼: '파라미터화' 토글 + 단계에서 찾은 변수 표시, 새로 켜고 저장하면 데이터셋 탭으로 이동.
+- 차수 상세(Zephyr "Test Cycle" 배치): `TC Key | 제목 | 결과(ResultSelect 인라인, 코멘트 없이 결과만 기록) | 담당자 | 실행일시 | 코멘트(최근)`.
+  파라미터화 TC는 상위 행(🔢 N, "N개 행 중 M개 성공 · …" 요약, 행별 색 미니 막대, 접기) + 데이터셋 하위 행(들여쓰기, 변수=값 칩). 상위 체크박스 = 하위 전체 선택.
+  하위 행 클릭 → 결과 입력 패널: 단계·기대결과를 이 행 값으로 치환 + DatasetTable(읽기 전용, 현재 행 강조). 진행률·결과 건수는 데이터 행을 각각 1건으로 집계.
 - Vue 템플릿 `{{ }}` 안에서 `` `{${v}}` `` 금지(`}}`가 보간을 닫음) → `braced(v)` 사용.
 
 ### AI 추천/검토 규칙
@@ -239,5 +242,5 @@ npm run build
 - ✅ v4-3 TC ↔ 요구사항 다대다 + Traceability
 - ✅ v4-4 나머지 화면 프로젝트 필터링 (대시보드 TC 집계·모듈 목록 프로젝트 기준, TC 상세 전환 처리) — **v4 완료**
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
-- 🔄 파라미터화 TC (docs/09): ✅ A 스키마·백엔드 / ✅ B TC 목록·상세 탭·DatasetTable / ⏳ C 차수 상세 테이블
+- 🔄 파라미터화 TC (docs/09): ✅ A 스키마·백엔드 / ✅ B TC 목록·상세 탭·DatasetTable / ✅ C 차수 상세 테이블 — **완료** (다음: 규칙기반(3-1) 추천이 '파라미터화 TC 1개 + 데이터셋 N행'을 생성하도록 연결)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
