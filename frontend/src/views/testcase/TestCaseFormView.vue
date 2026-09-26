@@ -36,7 +36,6 @@ const saving = ref(false)
 const error = ref('')
 
 onMounted(async () => {
-  modules.value = await testCaseApi.modules().catch(() => [])
   try {
     if (!isEdit.value) {
       if (currentProjectId.value) await loadProjectOptions(currentProjectId.value)
@@ -63,9 +62,14 @@ onMounted(async () => {
 })
 
 async function loadProjectOptions(projectId) {
-  const [tree, atomics] = await Promise.all([folderApi.tree(projectId), requirementApi.atomics(projectId)])
+  const [tree, atomics, mods] = await Promise.all([
+    folderApi.tree(projectId),
+    requirementApi.atomics(projectId),
+    testCaseApi.modules(projectId).catch(() => []),
+  ])
   folders.value = flattenFolders(tree.roots)
   requirementOptions.value = atomics
+  modules.value = mods
 }
 
 const addStep = () => form.steps.push({ action: '', expectedResult: '' })

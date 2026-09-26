@@ -37,8 +37,8 @@ public class TestCaseService {
         return tc;
     }
 
-    public List<String> modules() {
-        return mapper.findModules();
+    public List<String> modules(Long projectId) {
+        return mapper.findModules(projectId);
     }
 
     @Transactional

@@ -67,7 +67,10 @@
     </select>
 
     <select id="findModules" resultType="string">
-        SELECT DISTINCT module FROM test_case WHERE module IS NOT NULL AND module != '' ORDER BY module
+        SELECT DISTINCT module FROM test_case
+         WHERE module IS NOT NULL AND module != ''
+        <if test="projectId != null">AND project_id = #{projectId}</if>
+         ORDER BY module
     </select>
 
     <!-- TC 코드: TC-00001 형식 max+1 (샘플 데이터의 명시 코드와 충돌하지 않도록 시퀀스 대신 MAX 사용) -->

@@ -69,7 +69,8 @@ class TestCaseServiceTest {
         search.setKeyword(null);
         search.setModule("인증");
         assertThat(service.search(search).items()).extracting(TestCase::getTitle).containsExactly("로그아웃");
-        assertThat(service.modules()).contains("주문", "인증");
+        assertThat(service.modules(1L)).contains("주문", "인증", "가입금액");
+        assertThat(service.modules(2L)).containsExactly("우대금리");
     }
 
     @Test

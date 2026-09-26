@@ -19,7 +19,8 @@ public interface TestCaseMapper {
 
     List<TestStep> findSteps(Long testCaseId);
 
-    List<String> findModules();
+    /** @param projectId null이면 전체 */
+    List<String> findModules(@Param("projectId") Long projectId);
 
     void insert(TestCase testCase);
 

@@ -122,7 +122,7 @@ ai-tms/
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/api/test-cases?keyword&module&priority&status&page&size` | 검색+페이징 |
-| GET | `/api/test-cases/modules` | 모듈 목록(필터/자동완성) |
+| GET | `/api/test-cases/modules?projectId` | 모듈 목록(자동완성, projectId 없으면 전체) |
 | GET | `/api/test-cases/{id}` | 상세(steps 포함) |
 | POST / PUT | `/api/test-cases`, `/api/test-cases/{id}` | 등록/수정 (수정 시 version+1, 단계 전체 교체) |
 | DELETE | `/api/test-cases/{id}` | 차수 등록 이력 있으면 409 → 폐기(DEPRECATED)로 유도 |
@@ -160,6 +160,9 @@ ai-tms/
 - 폴더는 같은 프로젝트 안에서만(교차 프로젝트 폴더 지정 400). TC 수정 시 프로젝트 이동 불가, 폴더 이동은 가능.
 - 차수에는 **같은 프로젝트의** ACTIVE·APPROVED TC만 등록.
 - 폴더 선택 상태는 URL `?folder=all|unfiled|<id>`로 유지(상세→목록 복귀 시 같은 폴더).
+- **프로젝트 필터링 원칙(v4-4):** 목록·집계 API는 모두 `projectId` 쿼리(또는 차수/수행항목/이슈 id처럼 이미 프로젝트가 정해진 경로)로 조회. 예외는 설계상 전체 대상인 것만 — 규칙 카탈로그, '다른 프로젝트에서 가져오기' 검색(`excludeProjectId`), RAG 검색(추후).
+  경로는 문서 초안과 다르게 기존 `/api/dashboard`, `/api/cycles` 유지(사용자 확인).
+- 프로젝트 전환 시 TC/차수/이슈의 상세·수정 화면(`params.id`)에 있으면 해당 목록으로 이동.
 
 ### 요구사항 ↔ TC 다대다 규칙 (v4-3)
 - TC 등록/수정 body의 `atomicRequirementIds`로 링크 **전체 교체**(중복 id 제거). **같은 프로젝트의 원자 요구사항만** 연결(아니면 400).
@@ -205,7 +208,7 @@ npm run build
 - 표시명/칩 색: `labels.js`의 `DEFECT_STATUS`, `SEVERITY` (`{label, chip}`) + `<LabelChip :map :value>`.
 
 ### 대시보드 기준 (헤더 선택 프로젝트)
-- 총 테스트케이스 = ACTIVE TC 수(저장소는 프로젝트 비종속 → 전체), 보조: 최근 7일 등록 수.
+- 총 테스트케이스 = **현재 프로젝트** ACTIVE TC 수, 보조: 최근 7일 등록 수.
 - 수행 통과율 = 현재 차수 PASS / 수행완료(미수행 제외), 보조: 직전 차수 대비 %p. 현재 차수 = IN_PROGRESS 최신 → 없으면 PLANNED 최신.
 - 열린 이슈 = NEW/OPEN/IN_PROGRESS, 보조: 최근 7일 등록 수. 활성 테스트 차수 = CLOSED 아닌 차수, 보조: 진행중 수.
 - 최근 등록된 이슈 = 프로젝트 이슈 최신 5건(defect 검색 API 재사용). 테스트 차수별 진행률 = 진행중→계획→종료 순 3개, **진행률 % = 통과 / 전체**(레퍼런스 기준, `labels.js passRate`) — 차수 화면의 진행률(수행완료/전체, `progressRate`)과 다름에 주의.
@@ -217,6 +220,6 @@ npm run build
 - ✅ v4-1 프로젝트 전역화 (Pinia projectStore + 헤더 ProjectSelector, pill ProjectTabs 제거)
 - ✅ v4-2 TC 프로젝트 소유 + 폴더 트리 + 프로젝트 등록 + 다른 프로젝트에서 가져오기
 - ✅ v4-3 TC ↔ 요구사항 다대다 + Traceability
-- ⏳ v4 남은 단계: 4) 나머지 화면 필터링(대시보드 TC 수 프로젝트 기준 등)
+- ✅ v4-4 나머지 화면 프로젝트 필터링 (대시보드 TC 집계·모듈 목록 프로젝트 기준, TC 상세 전환 처리) — **v4 완료**
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

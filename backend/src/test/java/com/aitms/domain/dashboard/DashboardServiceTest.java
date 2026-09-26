@@ -134,7 +134,7 @@ class DashboardServiceTest {
         assertThat(s.inProgressCycleCount()).isEqualTo(1);
         assertThat(s.openDefectCount()).isEqualTo(1);
         assertThat(s.defectsOpenedThisWeek()).isEqualTo(1);
-        assertThat(s.testCasesAddedThisWeek()).isGreaterThanOrEqualTo(3);
-        assertThat(s.totalTestCaseCount()).isGreaterThanOrEqualTo(s.testCasesAddedThisWeek());
+        assertThat(s.totalTestCaseCount()).isEqualTo(3);      // 프로젝트 99 소유만 (샘플 프로젝트 1·2 제외)
+        assertThat(s.testCasesAddedThisWeek()).isEqualTo(3);
     }
 }

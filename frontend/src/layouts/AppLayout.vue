@@ -12,8 +12,8 @@ const { currentProjectId } = storeToRefs(projectStore)
 
 onMounted(() => projectStore.loadProjects().catch(() => {}))
 
-// 프로젝트 전환 시, 이전 프로젝트에 속한 상세 화면(차수/이슈)에 머물러 있으면 해당 목록으로 이동
-const PROJECT_SCOPED = ['/cycles', '/defects']
+// 프로젝트 전환 시, 이전 프로젝트에 속한 상세·수정 화면(TC/차수/이슈)에 머물러 있으면 해당 목록으로 이동
+const PROJECT_SCOPED = ['/test-cases', '/cycles', '/defects']
 watch(currentProjectId, (next, prev) => {
   if (!prev || !route.params.id) return
   const root = PROJECT_SCOPED.find((p) => route.path.startsWith(p))

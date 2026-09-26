@@ -65,7 +65,7 @@ async function submit() {
 
 onMounted(async () => {
   search()
-  modules.value = await testCaseApi.modules().catch(() => [])
+  modules.value = await testCaseApi.modules(props.projectId).catch(() => [])
 })
 </script>
 

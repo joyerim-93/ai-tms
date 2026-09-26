@@ -42,8 +42,8 @@ public class DashboardService {
         TestCycle current = currentCycle(cycles);
 
         return new DashboardSummary(
-                mapper.countActiveTestCases(null),
-                mapper.countActiveTestCases(RECENT_DAYS),
+                mapper.countActiveTestCases(projectId, null),
+                mapper.countActiveTestCases(projectId, RECENT_DAYS),
                 current == null ? null : passRate(current),
                 current == null ? null : previousPassRate(cycles, current),
                 unresolved,

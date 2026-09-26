@@ -4,7 +4,8 @@
 
     <select id="countActiveTestCases" resultType="long">
         SELECT COUNT(*) FROM test_case
-         WHERE status = 'ACTIVE'
+         WHERE project_id = #{projectId}
+           AND status = 'ACTIVE'
         <if test="sinceDays != null">AND created_at &gt;= DATEADD('DAY', -CAST(#{sinceDays} AS INT), CURRENT_TIMESTAMP)</if>
     </select>
 

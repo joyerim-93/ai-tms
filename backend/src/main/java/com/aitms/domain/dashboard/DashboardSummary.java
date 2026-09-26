@@ -8,7 +8,7 @@ import com.aitms.domain.execution.TestCycle;
 /**
  * 대시보드 요약.
  *
- * @param totalTestCaseCount    사용(ACTIVE) TC 수 — 저장소는 프로젝트 비종속이라 전체 기준
+ * @param totalTestCaseCount    프로젝트의 사용(ACTIVE) TC 수
  * @param testCasesAddedThisWeek 최근 7일 등록 TC 수
  * @param passRate              현재 차수 통과율(%) = PASS / 수행완료(미수행 제외), 수행 0건이면 null
  * @param previousPassRate      직전 차수(cycle_no 더 작은 것 중 최신) 통과율, 없으면 null
