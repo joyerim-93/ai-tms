@@ -139,6 +139,8 @@ h1, h2, h3 {
 .chip-medium { color: var(--priority-medium); background: var(--priority-medium-bg); }
 .chip-low { color: var(--priority-low); background: var(--priority-low-bg); }
 .chip-muted { color: var(--text-muted); background: var(--bg-hover); }
+.chip-accent { color: var(--color-accent); background: var(--color-accent-bg); }
+.chip-pass { color: var(--status-pass); background: var(--status-pass-bg); }
 
 .muted { color: var(--text-muted); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); }

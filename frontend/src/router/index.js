@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 
-const Placeholder = () => import('@/views/PlaceholderView.vue')
+const DefectForm = () => import('@/views/defect/DefectFormView.vue')
 const TestCaseForm = () => import('@/views/testcase/TestCaseFormView.vue')
 
 const routes = [
@@ -32,7 +32,18 @@ const routes = [
         component: () => import('@/views/cycle/CycleDetailView.vue'),
         meta: { title: '테스트 차수' },
       },
-      { path: 'defects', component: Placeholder, meta: { title: '결함관리' } },
+      {
+        path: 'defects',
+        component: () => import('@/views/defect/DefectListView.vue'),
+        meta: { title: '결함관리' },
+      },
+      { path: 'defects/new', component: DefectForm, meta: { title: '결함 등록' } },
+      {
+        path: 'defects/:id(\\d+)',
+        component: () => import('@/views/defect/DefectDetailView.vue'),
+        meta: { title: '결함 상세' },
+      },
+      { path: 'defects/:id(\\d+)/edit', component: DefectForm, meta: { title: '결함 수정' } },
     ],
   },
 ]

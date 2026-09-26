@@ -28,6 +28,7 @@ ai-tms/
 │     │  ├─ testcase/            ✅ 테스트케이스 저장소 (Controller/Service/Mapper/DTO)
 │     │  ├─ execution/           ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*, 요청 DTO는 ExecutionRequests)
 │     │  ├─ project/             프로젝트/멤버 조회
+│     │  ├─ defect/              ✅ 결함관리 (DefectStatus에 상태 전이 규칙, DefectRequests)
 │     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현 (AI 추천 자리)
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
@@ -44,8 +45,8 @@ ai-tms/
       ├─ layouts/AppLayout.vue   사이드바 + 헤더
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
-      ├─ components/             KpiCard, StatusBadge, PriorityChip, ProgressBar(결과 누적막대), BaseModal
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel)
+      ├─ components/             KpiCard, StatusBadge, PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
 
@@ -125,6 +126,11 @@ ai-tms/
 | GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목 / 이력(최신순) |
 | POST | `/api/executions/{id}/results` `{result, comment}` | 결과 입력 → 최종결과 갱신 + 이력 추가 |
 
+| GET | `/api/defects?projectId\|executionId&status&unresolved&severity&assigneeId&keyword&page&size` | 결함 검색 (projectId·executionId 중 하나 필수) |
+| GET / POST / PUT | `/api/defects[/{id}]` | 결함 상세/등록/수정 (응답에 `nextStatuses`, 삭제 API 없음 → REJECTED) |
+| POST | `/api/defects/{id}/status` `{status, comment}` | 상태 전이 (규칙 위반 409) + 이력 기록 |
+| GET / POST | `/api/defects/{id}/comments` | 코멘트·상태이력 타임라인 / 코멘트 추가 |
+
 TC 코드는 `tc_code_seq` 시퀀스로 `TC-00001` 형식 채번.
 
 ### 테스트수행 규칙
@@ -149,3 +155,11 @@ npm install
 npm run dev      # http://localhost:5173  (/api → 8080 프록시)
 npm run build
 ```
+
+### 결함관리 규칙
+- 코드: 프로젝트 내 `DF-0001` 순번. 등록 시 상태 NEW, 보고자 = CurrentUser.
+- 상태 흐름: NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED, NEW/OPEN→REJECTED, RESOLVED/CLOSED/REJECTED→OPEN(재오픈). 규칙은 `DefectStatus.next()` 한 곳에만 정의 — 화면은 응답의 `nextStatuses`로 버튼 생성.
+- 미해결 = NEW/OPEN/IN_PROGRESS (`DefectStatus.UNRESOLVED`, 대시보드 지표에도 동일 기준 사용).
+- 상태 변경·코멘트 모두 `defect_comment`에 저장 (statusFrom/To 있으면 상태 변경 이력).
+- 수행 항목 연결: 결과 패널(FAIL/BLOCKED)의 '결함 등록' → `/defects/new?executionId=` 로 진입, 제목·본문 템플릿 자동 채움. 다른 프로젝트 수행 항목 연결은 400.
+- 표시명/칩 색: `labels.js`의 `DEFECT_STATUS`, `SEVERITY` (`{label, chip}`) + `<LabelChip :map :value>`.

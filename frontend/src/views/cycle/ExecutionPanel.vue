@@ -1,8 +1,11 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { executionApi } from '@/api/cycles'
 import { testCaseApi } from '@/api/testCases'
-import { RESULT, formatDateTime } from '@/constants/labels'
+import { defectApi } from '@/api/defects'
+import { DEFECT_STATUS, RESULT, formatDateTime } from '@/constants/labels'
+import LabelChip from '@/components/LabelChip.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 
@@ -17,18 +20,25 @@ const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
+const defects = ref([]) // 이 수행 항목에 연결된 결함
 const saving = ref(false)
 const error = ref('')
+const router = useRouter()
 
 async function load() {
   exec.value = await executionApi.get(props.executionId)
-  const [testCase, hist] = await Promise.all([
+  const [testCase, hist, linked] = await Promise.all([
     testCaseApi.get(exec.value.testCaseId),
     executionApi.history(props.executionId),
+    defectApi.search({ executionId: props.executionId, size: 50 }),
   ])
   tc.value = testCase
   history.value = hist
+  defects.value = linked.items
 }
+
+const canReportDefect = () => ['FAIL', 'BLOCKED'].includes(exec.value?.result)
+const reportDefect = () => router.push(`/defects/new?executionId=${props.executionId}`)
 
 async function record(result) {
   saving.value = true
@@ -106,6 +116,25 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
           <p v-else class="muted">종료된 차수는 결과를 입력할 수 없습니다.</p>
 
           <section class="block">
+            <div class="block-head">
+              <div class="label">연결된 결함 ({{ defects.length }})</div>
+              <button v-if="canReportDefect()" class="btn btn-sm btn-danger" @click="reportDefect">
+                + 결함 등록
+              </button>
+            </div>
+            <ul v-if="defects.length" class="defects">
+              <li v-for="d in defects" :key="d.id">
+                <RouterLink :to="`/defects/${d.id}`" class="mono">{{ d.defectCode }}</RouterLink>
+                <span class="defect-title">{{ d.title }}</span>
+                <LabelChip :map="DEFECT_STATUS" :value="d.status" />
+              </li>
+            </ul>
+            <p v-else class="muted small">
+              {{ canReportDefect() ? '실패/Block 결과입니다. 결함을 등록하세요.' : '연결된 결함이 없습니다.' }}
+            </p>
+          </section>
+
+          <section class="block">
             <div class="label">수행 이력 ({{ history.length }})</div>
             <ul v-if="history.length" class="history">
               <li v-for="h in history" :key="h.id">
@@ -168,6 +197,31 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   color: var(--status-notrun);
   background: var(--status-notrun-bg);
   font-size: var(--font-size-sm);
+}
+.block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.defects {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.defects li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.defect-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.small {
+  font-size: var(--font-size-xs);
 }
 .block {
   margin-top: var(--space-5);
