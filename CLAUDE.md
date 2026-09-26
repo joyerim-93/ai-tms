@@ -28,7 +28,8 @@ ai-tms/
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
 │        ├─ application.yml
-│        ├─ schema.sql           (예정) CREATE TABLE IF NOT EXISTS
+│        ├─ schema.sql           전체 12개 테이블 (CREATE TABLE IF NOT EXISTS, 기동마다 실행)
+│        ├─ data.sql             샘플 데이터 (MERGE ... KEY 로 멱등)
 │        └─ mapper/<도메인>/*.xml MyBatis 쿼리
 └─ frontend/                     Vue 3 + Vite
    └─ src/
@@ -54,6 +55,13 @@ ai-tms/
 - **defect**(project_id, defect_code, severity, priority, status `NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED|REJECTED`, reporter_id, assignee_id, execution_id nullable)
 - **defect_comment**(defect_id, author_id, content, status_from/to)
 - 대시보드는 별도 테이블 없이 집계 쿼리.
+- 기타 enum: project.status `ACTIVE|CLOSED`, project_role `PM|DEV|BIZ|QA`, priority `HIGH|MEDIUM|LOW`, severity `CRITICAL|MAJOR|MINOR|TRIVIAL`. 모두 VARCHAR + CHECK 제약.
+
+### 스키마/데이터 규칙
+- 스키마 변경 시 schema.sql 수정 → IF NOT EXISTS라 기존 DB엔 반영 안 됨 → 개발 중엔 `backend/data/` 삭제 후 재기동.
+- data.sql은 `MERGE INTO ... KEY(...)`만 사용(재기동 시 중복 방지). 명시 id로 넣어도 H2가 identity를 자동 조정함(테스트로 확인).
+- 샘플 사용자: 1 qa01(QA), 2 dev01, 3 dev02(DEV), 4 biz01(BIZ), 5 admin(ADMIN) / 프로젝트 1 `PRJ-DEMO`. **인증 도입 전까지 로그인 사용자 = id 1(qa01)**.
+- 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
 
 ## 디자인 토큰 (`frontend/src/styles/tokens.css`)
 테마 전환: `<html data-theme="light|dark">`, localStorage 키 `aitms-theme`. index.html 인라인 스크립트로 첫 페인트 전 적용.
