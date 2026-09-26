@@ -2,13 +2,14 @@
 import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { cycleApi } from '@/api/cycles'
-import { useProject } from '@/composables/useProject'
+import { storeToRefs } from 'pinia'
+import { useProjectStore } from '@/stores/projectStore'
 import { progressRate } from '@/constants/labels'
 import ProgressBar from '@/components/ProgressBar.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 
 const router = useRouter()
-const { projectId } = useProject()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
 const cycles = ref([])
 const error = ref('')

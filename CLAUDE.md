@@ -11,7 +11,7 @@
 |---|---|
 | Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** (docs/03-SKELETON-v2.md 기준) |
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
-| Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4 |
+| Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4, Pinia |
 | 인증 | 미적용. 추후 Spring Security (users 테이블만 미리 설계) |
 | AI 추천 | Claude API(RAG) 예정. 지금은 `RecommendationService` 인터페이스 + Noop 구현만 |
 
@@ -43,11 +43,11 @@ ai-tms/
    └─ src/
       ├─ styles/theme.css        디자인 토큰 v3 (docs/04-DESIGN-v3.md) — 라이트만, 다크는 추후 같은 변수명으로
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
-      ├─ composables/useProject.js 전역 선택 프로젝트(ProjectTabs, localStorage `aitms-project`) — 프로젝트 종속 화면은 `watch(projectId, load, {immediate:true})`
-      ├─ layouts/AppLayout.vue   AppHeader + ProjectTabs + 가운데 정렬 콘텐츠(max 1120px)
+      ├─ stores/projectStore.js  Pinia 전역 프로젝트 컨텍스트: projects, currentProjectId(localStorage `aitms-project`), currentProject, loadProjects(), selectProject()
+      ├─ layouts/AppLayout.vue   AppHeader + 가운데 정렬 콘텐츠(max 1120px). 기동 시 loadProjects(), 프로젝트 전환 시 차수/이슈 상세 화면이면 목록으로 이동
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
-      ├─ components/             AppHeader, ProjectTabs, StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
+      ├─ components/             AppHeader(메뉴 + 우측 ProjectSelector), ProjectSelector(전환 전용 드롭다운), StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
       │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal
       ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
@@ -80,7 +80,7 @@ ai-tms/
 - 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
 
 ## 디자인 v3 (docs/04-DESIGN-v3.md, docs/dashboard-reference.jpg)
-- **레이아웃:** 좌측 사이드바 폐기 → 상단 `AppHeader`(로고 AI-TMS + 탭 4개: 대시보드/테스트케이스/테스트 수행/이슈관리, 활성 탭 `--accent` 밑줄) + 그 아래 `ProjectTabs`(pill, 선택 시 ✓ + accent). 페이지 제목(h1) 없음.
+- **레이아웃:** 좌측 사이드바 폐기 → 상단 `AppHeader`(로고 AI-TMS + 탭 4개: 대시보드/테스트케이스/테스트 수행/이슈관리, 활성 탭 `--accent` 밑줄) + 헤더 우측 `ProjectSelector` 드롭다운(v4: **전환만**, 등록은 테스트케이스 화면에서만). 페이지 제목(h1) 없음.
 - **라이트 모드만.** 테마 토글·useTheme 제거. 다크는 theme.css 하단 `[data-theme='dark']`에 **같은 변수명**으로 값만 추가.
 
 ### 토큰 (`frontend/src/styles/theme.css`)
@@ -104,6 +104,7 @@ ai-tms/
 - 요약 카드는 `<StatCard title value unit sub />` 재사용 (다른 화면 상단 요약에도 사용 예정).
 - 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
+- 프로젝트 종속 화면: `const { currentProjectId: projectId } = storeToRefs(useProjectStore())` + `watch(projectId, load, { immediate: true })`. 선택 변경은 `projectStore.selectProject(id)`로만.
 - 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트).
 - Backend: 도메인별 패키지, SQL은 mapper XML(`resources/mapper/XxxMapper.xml`)에 작성(어노테이션 SQL 금지), `resultType`은 FQCN 사용(type alias 미사용), DB 컬럼 snake_case → DTO camelCase 자동 매핑.
 - 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
@@ -192,5 +193,7 @@ npm run build
 ## 진행 현황
 - ✅ 골격 / 스키마 / ② TC 저장소 / ③ 테스트수행 / ④ 결함 / ① 대시보드
 - ✅ docs/00-SKELETON.md 병합 (요구사항/원자요구사항/규칙카탈로그, TC 출처·기법·검토) — 단, 문서의 JPA·test_round 명칭·Pinia·문자열 담당자는 채택하지 않음(MyBatis, test_cycle, users FK 유지)
+- ✅ v4-1 프로젝트 전역화 (Pinia projectStore + 헤더 ProjectSelector, pill ProjectTabs 제거)
+- ⏳ v4 남은 단계 (docs/06-DESIGN-v4.md): 2) 테스트케이스 폴더 트리 + 프로젝트 등록 → 3) TC-요구사항 N:N(test_case_requirement_link) → 4) 나머지 화면 필터링
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

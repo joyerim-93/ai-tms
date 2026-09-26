@@ -1,5 +1,6 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const route = useRoute()
 
@@ -23,6 +24,7 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
           {{ m.label }}
         </RouterLink>
       </nav>
+      <ProjectSelector class="selector" />
     </div>
   </header>
 </template>
@@ -49,6 +51,9 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
   font-size: var(--font-size-xl);
   font-weight: 800;
   letter-spacing: -0.3px;
+}
+.selector {
+  margin-left: auto;
 }
 .menu {
   display: flex;

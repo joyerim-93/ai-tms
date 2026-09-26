@@ -1,13 +1,14 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { requirementApi, ruleCatalogApi } from '@/api/requirements'
-import { useProject } from '@/composables/useProject'
+import { storeToRefs } from 'pinia'
+import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, REQUIREMENT_TYPE, TECHNIQUE } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
 import RepoTabs from './RepoTabs.vue'
 
 // 요구사항 원문 → 원자 요구사항(AI 분해) → 규칙/RAG/LLM 추천 TC 흐름의 입구
-const { projectId } = useProject()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
 const requirements = ref([])
 const expanded = ref(null)       // 펼친 요구사항 상세 (atomics 포함)

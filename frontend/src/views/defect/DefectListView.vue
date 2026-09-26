@@ -3,14 +3,15 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { defectApi } from '@/api/defects'
 import { projectApi } from '@/api/projects'
-import { useProject } from '@/composables/useProject'
+import { storeToRefs } from 'pinia'
+import { useProjectStore } from '@/stores/projectStore'
 import { DEFECT_STATUS, SEVERITY, formatDateTime } from '@/constants/labels'
 import LabelChip from '@/components/LabelChip.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 
 const router = useRouter()
-const { projectId } = useProject()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
 // status: '' 전체 | 'UNRESOLVED' 미해결 묶음 | 개별 상태
 const filter = reactive({ keyword: '', status: 'UNRESOLVED', severity: '', assigneeId: '' })

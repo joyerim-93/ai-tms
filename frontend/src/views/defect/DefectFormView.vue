@@ -4,7 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { defectApi } from '@/api/defects'
 import { executionApi } from '@/api/cycles'
 import { projectApi } from '@/api/projects'
-import { useProject } from '@/composables/useProject'
+import { storeToRefs } from 'pinia'
+import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, SEVERITY } from '@/constants/labels'
 import StatusBadge from '@/components/StatusBadge.vue'
 
@@ -12,7 +13,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 // 수정: /defects/:id/edit
 const route = useRoute()
 const router = useRouter()
-const { projectId } = useProject()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 const id = route.params.id
 const isEdit = computed(() => !!id)
 
@@ -64,7 +65,7 @@ onMounted(async () => {
   }
 })
 
-// 첫 방문 시 useProject가 비동기로 채워지므로 watch
+// 첫 방문 시 projectStore가 비동기로 채워지므로 watch
 watch(
   projectId,
   async (pid) => {

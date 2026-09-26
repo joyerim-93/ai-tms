@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { defectApi } from '@/api/defects'
 import { cycleApi } from '@/api/cycles'
-import { useProject } from '@/composables/useProject'
+import { storeToRefs } from 'pinia'
+import { useProjectStore } from '@/stores/projectStore'
 import StatCard from '@/components/StatCard.vue'
 import IssueListCard from '@/components/IssueListCard.vue'
 import TestRoundProgressCard from '@/components/TestRoundProgressCard.vue'
@@ -11,7 +12,7 @@ import TestRoundProgressCard from '@/components/TestRoundProgressCard.vue'
 const ISSUE_LIMIT = 5
 const ROUND_LIMIT = 3
 
-const { projectId } = useProject()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 const summary = ref(null)
 const issues = ref([])
 const rounds = ref([])
