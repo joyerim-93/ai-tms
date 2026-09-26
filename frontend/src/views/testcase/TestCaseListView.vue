@@ -1,13 +1,18 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { testCaseApi } from '@/api/testCases'
-import { PRIORITY, TC_STATUS, formatDateTime } from '@/constants/labels'
+import { PRIORITY, TC_STATUS, TC_SOURCE, REVIEW_STATUS, formatDateTime } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
+import LabelChip from '@/components/LabelChip.vue'
+import RepoTabs from './RepoTabs.vue'
 
 const router = useRouter()
+const route = useRoute()
 
-const filter = reactive({ keyword: '', module: '', priority: '', status: 'ACTIVE' })
+const DEFAULT_FILTER = { keyword: '', module: '', priority: '', status: 'ACTIVE', source: '', reviewStatus: '' }
+// 요구사항 탭의 'TC n건' 링크로 진입 시 ?atomicRequirementId= 필터
+const filter = reactive({ ...DEFAULT_FILTER, atomicRequirementId: route.query.atomicRequirementId ?? '' })
 const page = ref(1)
 const size = 20
 const result = ref({ items: [], total: 0 })
@@ -31,7 +36,7 @@ async function load(p = 1) {
 }
 
 function reset() {
-  Object.assign(filter, { keyword: '', module: '', priority: '', status: 'ACTIVE' })
+  Object.assign(filter, { ...DEFAULT_FILTER, atomicRequirementId: '' })
   load()
 }
 
@@ -42,6 +47,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <RepoTabs />
   <div class="page-actions">
     <button class="btn btn-primary" @click="router.push('/test-cases/new')">+ 새 테스트케이스</button>
   </div>
@@ -60,13 +66,26 @@ onMounted(async () => {
       <option value="">전체 상태</option>
       <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
     </select>
+    <select v-model="filter.source" class="select">
+      <option value="">전체 출처</option>
+      <option v-for="(s, key) in TC_SOURCE" :key="key" :value="key">{{ s.label }}</option>
+    </select>
+    <select v-model="filter.reviewStatus" class="select">
+      <option value="">전체 검토상태</option>
+      <option v-for="(s, key) in REVIEW_STATUS" :key="key" :value="key">{{ s.label }}</option>
+    </select>
     <button type="submit" class="btn btn-primary">검색</button>
     <button type="button" class="btn" @click="reset">초기화</button>
   </form>
 
   <section class="card">
     <div class="list-header">
-      <span>총 <strong>{{ result.total }}</strong>건</span>
+      <span>
+        총 <strong>{{ result.total }}</strong>건
+        <button v-if="filter.atomicRequirementId" class="chip chip-accent filter-chip" @click="filter.atomicRequirementId = ''; load()">
+          원자 요구사항 #{{ filter.atomicRequirementId }} ✕
+        </button>
+      </span>
       <span v-if="loading" class="muted">불러오는 중…</span>
     </div>
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -78,9 +97,11 @@ onMounted(async () => {
           <th>제목</th>
           <th style="width: 130px">모듈</th>
           <th style="width: 80px">우선순위</th>
-          <th style="width: 60px">단계</th>
-          <th style="width: 60px">버전</th>
-          <th style="width: 90px">작성자</th>
+          <th style="width: 80px">출처</th>
+          <th style="width: 80px">검토</th>
+          <th style="width: 50px">단계</th>
+          <th style="width: 50px">버전</th>
+          <th style="width: 80px">작성자</th>
           <th style="width: 140px">수정일</th>
         </tr>
       </thead>
@@ -98,9 +119,11 @@ onMounted(async () => {
           </td>
           <td>{{ tc.module ?? '-' }}</td>
           <td><PriorityChip :priority="tc.priority" /></td>
+          <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
+          <td><LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" /></td>
           <td>{{ tc.stepCount }}</td>
           <td>v{{ tc.version }}</td>
-          <td>{{ tc.authorName ?? '-' }}</td>
+          <td>{{ tc.authorName ?? '시스템' }}</td>
           <td class="muted">{{ formatDateTime(tc.updatedAt) }}</td>
         </tr>
       </tbody>
@@ -123,7 +146,12 @@ onMounted(async () => {
   padding: var(--space-4);
 }
 .filters .select {
-  width: 150px;
+  width: 130px;
+}
+.filter-chip {
+  margin-left: var(--space-2);
+  border: none;
+  cursor: pointer;
 }
 .filters .keyword {
   flex: 1;

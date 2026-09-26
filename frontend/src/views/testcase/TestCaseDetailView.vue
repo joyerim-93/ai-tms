@@ -2,8 +2,9 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { testCaseApi } from '@/api/testCases'
-import { TC_STATUS, formatDateTime } from '@/constants/labels'
+import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE, formatDateTime } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
+import LabelChip from '@/components/LabelChip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,6 +18,16 @@ onMounted(async () => {
     error.value = e.message
   }
 })
+
+// 사람이 직접 작성한 TC(MANUAL)는 검토 대상 아님
+async function review(reviewStatus) {
+  error.value = ''
+  try {
+    tc.value = await testCaseApi.review(tc.value.id, reviewStatus)
+  } catch (e) {
+    error.value = e.message
+  }
+}
 
 async function remove() {
   if (!window.confirm(`${tc.value.tcCode} 테스트케이스를 삭제할까요?`)) return
@@ -40,6 +51,19 @@ async function remove() {
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <template v-if="tc">
+    <section v-if="tc.source !== 'MANUAL'" class="card review-bar" :class="`review-${tc.reviewStatus.toLowerCase()}`">
+      <div>
+        <LabelChip :map="TC_SOURCE" :value="tc.source" />
+        <LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" />
+        <span v-if="tc.reviewStatus === 'DRAFT'" class="muted">AI 추천 TC입니다. 검토 후 승인해야 차수에 등록할 수 있습니다.</span>
+        <span v-else class="muted">{{ tc.reviewedByName ?? '-' }} · {{ formatDateTime(tc.reviewedAt) }}</span>
+      </div>
+      <div class="review-buttons">
+        <button v-if="tc.reviewStatus !== 'APPROVED'" class="btn btn-sm" @click="review('APPROVED')">승인</button>
+        <button v-if="tc.reviewStatus !== 'REJECTED'" class="btn btn-sm btn-danger" @click="review('REJECTED')">반려</button>
+      </div>
+    </section>
+
     <section class="card summary">
       <div class="title-row">
         <span class="mono muted">{{ tc.tcCode }}</span>
@@ -52,10 +76,19 @@ async function remove() {
       <dl class="meta">
         <div><dt>모듈</dt><dd>{{ tc.module ?? '-' }}</dd></div>
         <div><dt>태그</dt><dd>{{ tc.tags ?? '-' }}</dd></div>
-        <div><dt>작성자</dt><dd>{{ tc.authorName ?? '-' }}</dd></div>
+        <div><dt>작성자</dt><dd>{{ tc.authorName ?? '시스템/AI' }}</dd></div>
+        <div><dt>테스트 기법</dt><dd>{{ TECHNIQUE[tc.technique] ?? '-' }}</dd></div>
         <div><dt>버전</dt><dd>v{{ tc.version }}</dd></div>
         <div><dt>수정일</dt><dd>{{ formatDateTime(tc.updatedAt) }}</dd></div>
       </dl>
+      <div v-if="tc.atomicText" class="precondition">
+        <div class="label">근거 요구사항</div>
+        <p class="pre">
+          <RouterLink to="/test-cases/requirements" class="mono">{{ tc.reqCode }}</RouterLink>
+          {{ tc.atomicText }}
+          <span v-if="tc.originProjectName" class="muted">(참고 프로젝트: {{ tc.originProjectName }})</span>
+        </p>
+      </div>
       <div v-if="tc.precondition" class="precondition">
         <div class="label">사전조건</div>
         <p class="pre">{{ tc.precondition }}</p>
@@ -86,6 +119,25 @@ async function remove() {
 </template>
 
 <style scoped>
+.review-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+}
+.review-bar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.review-draft {
+  border-left: 3px solid var(--status-notrun);
+}
+.review-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
 .summary {
   margin-bottom: var(--space-4);
 }

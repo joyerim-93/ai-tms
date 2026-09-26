@@ -47,3 +47,31 @@ export const formatDateTime = (value) => (value ? value.slice(0, 16).replace('T'
 /** 진행률(%) = 수행 완료(미수행 제외) / 전체 */
 export const progressRate = (c) =>
   c.totalCount ? Math.round(((c.totalCount - c.notRunCount) / c.totalCount) * 100) : 0
+
+// ── AI 추천 / 요구사항
+export const TC_SOURCE = {
+  MANUAL: { label: '직접작성', chip: 'chip-muted' },
+  RULE: { label: '규칙', chip: 'chip-accent' },
+  RAG: { label: 'RAG', chip: 'chip-medium' },
+  LLM: { label: 'AI 생성', chip: 'chip-high' },
+}
+
+export const REVIEW_STATUS = {
+  DRAFT: { label: '검토대기', chip: 'chip-medium' },
+  APPROVED: { label: '승인', chip: 'chip-pass' },
+  REJECTED: { label: '반려', chip: 'chip-muted' },
+}
+
+export const TECHNIQUE = {
+  BOUNDARY_VALUE: '경계값 분석',
+  EQUIVALENCE_PARTITION: '동등 분할',
+  DECISION_TABLE: '디시전 테이블',
+  EXPLORATORY: '탐색적',
+}
+
+export const REQUIREMENT_TYPE = {
+  AMOUNT_RANGE: '금액 범위',
+  RATE_RANGE: '비율 범위',
+  PERIOD_CONDITION: '기간 조건',
+  BOOLEAN_FLAG: '여부 플래그',
+}

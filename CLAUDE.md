@@ -30,12 +30,13 @@ ai-tms/
 │     │  ├─ project/             프로젝트/멤버 조회
 │     │  ├─ defect/              ✅ 결함관리 (DefectStatus에 상태 전이 규칙, DefectRequests)
 │     │  ├─ dashboard/           ✅ 대시보드 요약 (DashboardSummary 한 번에 반환)
-│     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현 (AI 추천 자리)
+│     │  ├─ requirement/         요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
+│     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현, RuleCatalog(규칙 카탈로그)
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
 │        ├─ application.yml
 │        ├─ schema.sql           전체 12개 테이블 (CREATE TABLE IF NOT EXISTS, 기동마다 실행)
-│        ├─ data.sql             샘플 데이터 (MERGE ... KEY 로 멱등)
+│        ├─ data.sql             KB 적금 시나리오 샘플 (INSERT IGNORE — 최초 1회만 반영)
 │        └─ mapper/<도메인>/*.xml MyBatis 쿼리
 └─ frontend/                     Vue 3 + Vite
    └─ src/
@@ -54,10 +55,13 @@ ai-tms/
 ## 도메인 모델 (승인됨)
 - **users**(login_id, name, email, role `DEV|BIZ|QA|ADMIN`, password nullable)
 - **project**, **project_member**(project_id, user_id, project_role)
-- **test_case**(중앙 저장소, 프로젝트 비종속: tc_code, title, module, precondition, priority, status `ACTIVE|DEPRECATED`, tags, author_id, version)
+- **test_case**(중앙 저장소, 프로젝트 비종속: tc_code, title, module, precondition, priority, status `ACTIVE|DEPRECATED`, tags, author_id(NULL=시스템/AI), version,
+  source `MANUAL|RULE|RAG|LLM`, technique `BOUNDARY_VALUE|EQUIVALENCE_PARTITION|DECISION_TABLE|EXPLORATORY`, review_status `DRAFT|APPROVED|REJECTED`, atomic_requirement_id, origin_project_id(RAG 원본), reviewed_by/at)
 - **test_step**(test_case_id, step_no, action, expected_result) — 단계는 행 단위 관리
-- **requirement**(project_id, req_code, title, description) — RAG 입력
-- **requirement_tc**(requirement_id, test_case_id, source `MANUAL|AI`, score) — 추적/AI 추천 결과
+- **requirement**(project_id, req_code `REQ-001`, title, description=원문, source `MANUAL|PMS`, priority) — AI 추천 입력
+- **atomic_requirement**(requirement_id, atomic_text, type `AMOUNT_RANGE|RATE_RANGE|PERIOD_CONDITION|BOOLEAN_FLAG`, min/max_value, unit, conditions JSON) — AI 에이전트가 원문을 분해한 결과
+- **rule_catalog**(requirement_type, technique, template `{min}/{max}` 치환) — 규칙기반 추천
+- 추적: requirement → atomic_requirement → test_case(atomic_requirement_id). (구 requirement_tc 제거)
 - **test_cycle**(차수: project_id, cycle_no, name, 기간, status `PLANNED|IN_PROGRESS|CLOSED`)
 - **test_execution**(cycle_id, test_case_id **UNIQUE**, tc_version, assignee_id, 최종 result `PASS|FAIL|BLOCKED|NOT_RUN`)
 - **test_execution_history**(execution_id, result, executed_by, executed_at, comment) — 차수×TC별 모든 수행 기록
@@ -68,8 +72,10 @@ ai-tms/
 
 ### 스키마/데이터 규칙
 - 스키마 변경 시 schema.sql 수정 → IF NOT EXISTS라 기존 DB엔 반영 안 됨 → 개발 중엔 `backend/data/` 삭제 후 재기동.
-- data.sql은 `MERGE INTO ... KEY(...)`만 사용(재기동 시 중복 방지). 명시 id로 넣어도 H2가 identity를 자동 조정함(테스트로 확인).
-- 샘플 사용자: 1 qa01(QA), 2 dev01, 3 dev02(DEV), 4 biz01(BIZ), 5 admin(ADMIN) / 프로젝트 1 `PRJ-DEMO`. **인증 도입 전까지 로그인 사용자 = id 1(qa01)**.
+- data.sql은 `INSERT IGNORE INTO`만 사용 — 재기동 시 중복·덮어쓰기 없음(사용자가 바꾼 샘플 데이터 유지). 명시 id로 넣어도 H2가 identity를 자동 조정함(테스트로 확인).
+- 코드 채번(TC-00001, REQ-001, DF-0001)은 모두 `MAX(번호)+1` 방식 → 샘플의 명시 코드와 충돌 없음.
+- 샘플(docs/02-sample-data.sql 변환): 사용자 1 qa.kim 김큐에이(QA), 2 dev.park 박개발(DEV), 3 qa.lee 이큐에이(QA), 4 biz.choi(BIZ), 5 admin / 프로젝트 1 `KB-SAVING` KB 적금 통장 신설, 2 `KB-SWITCH` 갈아타기(과거, RAG 원본) / 요구사항 REQ-001 + 원자 4 + 규칙 4 / TC 11(RULE·RAG·LLM, DRAFT 5) / 1차 통합테스트(PASS4·FAIL1·BLOCKED1·미수행3) / 결함 DF-0001. **인증 도입 전까지 로그인 사용자 = id 1(qa.kim)**.
+- 서비스 테스트는 샘플과 분리하려고 테스트 전용 프로젝트(id 99/98)를 `@BeforeEach`에서 넣어 사용.
 - 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
 
 ## 디자인 토큰 (`frontend/src/styles/tokens.css`)
@@ -133,7 +139,17 @@ ai-tms/
 | GET / POST | `/api/defects/{id}/comments` | 코멘트·상태이력 타임라인 / 코멘트 추가 |
 | GET | `/api/dashboard?projectId` | 대시보드 KPI + 내 미수행 TC·내 담당 결함 상위 10건 |
 
-TC 코드는 `tc_code_seq` 시퀀스로 `TC-00001` 형식 채번.
+| PATCH | `/api/test-cases/{id}/review` `{reviewStatus}` | AI 추천 TC 승인/반려 (검토자=CurrentUser) |
+| GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
+| GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 |
+| POST | `/api/requirements/{id}/recommend` | AI 추천 트리거 → `TcRecommendation[]` (현재 Noop=빈 배열) |
+| GET | `/api/rule-catalog` | 규칙 카탈로그 |
+
+### AI 추천/검토 규칙
+- 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
+- 화면에서 직접 만든 TC = source MANUAL + APPROVED (검토 대상 아님). 출처·검토상태는 TC 수정 API로 못 바꿈.
+- **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
+- 에이전트(LangGraph/Claude API) 연동 시 `RecommendationService` 구현체만 교체. `NoopRecommendationService`는 그때 제거하거나 `@ConditionalOnMissingBean`.
 
 ### 테스트수행 규칙
 - 결과 입력 시 수행자=CurrentUser, 차수가 PLANNED면 IN_PROGRESS로 자동 전환.
@@ -174,4 +190,5 @@ npm run build
 
 ## 진행 현황
 - ✅ 골격 / 스키마 / ② TC 저장소 / ③ 테스트수행 / ④ 결함 / ① 대시보드
+- ✅ docs/00-SKELETON.md 병합 (요구사항/원자요구사항/규칙카탈로그, TC 출처·기법·검토) — 단, 문서의 JPA·test_round 명칭·Pinia·문자열 담당자는 채택하지 않음(MyBatis, test_cycle, users FK 유지)
 - ⏳ 이후 후보: Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

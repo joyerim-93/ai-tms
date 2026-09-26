@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { testCaseApi } from '@/api/testCases'
-import { PRIORITY, TC_STATUS } from '@/constants/labels'
+import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +15,8 @@ const form = reactive({
   priority: 'MEDIUM',
   status: 'ACTIVE',
   tags: '',
+  technique: '',
+  atomicRequirementId: null, // 화면 편집 대상 아님 — 수정 시 기존 값 유지용
   precondition: '',
   steps: [{ action: '', expectedResult: '' }],
 })
@@ -33,6 +35,8 @@ onMounted(async () => {
       priority: tc.priority,
       status: tc.status,
       tags: tc.tags ?? '',
+      technique: tc.technique ?? '',
+      atomicRequirementId: tc.atomicRequirementId,
       precondition: tc.precondition ?? '',
       steps: tc.steps.map(({ action, expectedResult }) => ({ action, expectedResult: expectedResult ?? '' })),
     })
@@ -55,7 +59,7 @@ async function save() {
   const steps = form.steps.filter((s) => s.action.trim() || s.expectedResult.trim())
   saving.value = true
   try {
-    const body = { ...form, steps }
+    const body = { ...form, technique: form.technique || null, steps }
     const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
     router.push(`/test-cases/${saved.id}`)
   } catch (e) {
@@ -102,7 +106,14 @@ async function save() {
             <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
           </select>
         </div>
-        <div class="span-2">
+        <div>
+          <label class="label">테스트 기법</label>
+          <select v-model="form.technique" class="select">
+            <option value="">-</option>
+            <option v-for="(label, key) in TECHNIQUE" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div>
           <label class="label">태그</label>
           <input v-model="form.tags" class="input" maxlength="500" placeholder="콤마로 구분 (예: smoke,login)" />
         </div>

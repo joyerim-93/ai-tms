@@ -29,7 +29,7 @@ const allChecked = computed(
 async function search() {
   error.value = ''
   try {
-    const res = await testCaseApi.search({ ...filter, status: 'ACTIVE', size: 100 })
+    const res = await testCaseApi.search({ ...filter, status: 'ACTIVE', reviewStatus: 'APPROVED', size: 100 })
     items.value = res.items
     total.value = res.total
   } catch (e) {
@@ -78,7 +78,7 @@ onMounted(async () => {
       </select>
       <button class="btn btn-primary">검색</button>
     </form>
-    <p class="muted hint">사용(ACTIVE) 상태 TC만 표시됩니다. 최대 100건{{ total > 100 ? ` / 전체 ${total}건 — 검색어로 좁혀 주세요` : '' }}</p>
+    <p class="muted hint">사용 중이며 검토 승인된 TC만 표시됩니다. 최대 100건{{ total > 100 ? ` / 전체 ${total}건 — 검색어로 좁혀 주세요` : '' }}</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
     <table class="table">

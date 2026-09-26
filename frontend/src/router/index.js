@@ -15,6 +15,11 @@ const routes = [
         component: () => import('@/views/testcase/TestCaseListView.vue'),
         meta: { title: '테스트케이스 저장소' },
       },
+      {
+        path: 'test-cases/requirements',
+        component: () => import('@/views/testcase/RequirementListView.vue'),
+        meta: { title: '테스트케이스 저장소' },
+      },
       { path: 'test-cases/new', component: TestCaseForm, meta: { title: '테스트케이스 등록' } },
       {
         path: 'test-cases/:id(\\d+)',
