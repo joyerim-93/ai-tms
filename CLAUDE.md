@@ -30,7 +30,7 @@ ai-tms/
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
-│     │     ├─ recommend/        RecommendationService 인터페이스 + Noop 구현, RuleCatalog(규칙 카탈로그)
+│     │     ├─ recommend/        RecommendationService + RuleBasedRecommendationService(규칙기반 3-1), RuleCatalog
 │     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
 │     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
 │     │     └─ dashboard/        ✅ 대시보드 요약
@@ -64,7 +64,7 @@ ai-tms/
 - **test_step**(test_case_id, step_no, action, expected_result) — 단계는 행 단위 관리
 - **requirement**(project_id, req_code `REQ-001`, title, description=원문, source `MANUAL|PMS`, priority) — AI 추천 입력
 - **atomic_requirement**(requirement_id, atomic_text, type `AMOUNT_RANGE|RATE_RANGE|PERIOD_CONDITION|BOOLEAN_FLAG`, min/max_value, unit, conditions JSON) — AI 에이전트가 원문을 분해한 결과
-- **rule_catalog**(requirement_type, technique, template `{min}/{max}` 치환) — 규칙기반 추천
+- **rule_catalog**(requirement_type, technique, template=사람용 설명, **generator**=추천 생성 규칙 JSON) — 규칙기반 추천
 - **test_case_dataset**(test_case_id, row_label, param_values JSON, expected_result_override, sort_order) — 파라미터화 TC(test_case.is_parameterized) 데이터 행
 - **test_execution.dataset_id** — 파라미터화 TC는 데이터셋 행마다 실행 항목 1건 (NULL = TC 단위)
 - **test_case_requirement_link**(test_case_id, atomic_requirement_id, UNIQUE, 양쪽 ON DELETE CASCADE) — TC ↔ 원자 요구사항 **다대다**(Zephyr Traceability). test_case.atomic_requirement_id는 삭제됨.
@@ -157,7 +157,7 @@ ai-tms/
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
 | GET | `/api/requirements/atomics?projectId` | 프로젝트 원자 요구사항 전체(원문 코드·제목 포함) — TC 폼 선택용 |
-| POST | `/api/requirements/{id}/recommend` | AI 추천 트리거 → `TcRecommendation[]` (현재 Noop=빈 배열) |
+| POST | `/api/requirements/{id}/recommend` | 추천 실행 → DRAFT TC 저장, `{created[], skipped, warnings[]}` (현재 규칙기반) |
 | GET | `/api/rule-catalog` | 규칙 카탈로그 |
 
 ### 프로젝트 소유 · 중앙관리 규칙 (v4)
@@ -189,6 +189,16 @@ ai-tms/
   파라미터화 TC는 상위 행(🔢 N, "N개 행 중 M개 성공 · …" 요약, 행별 색 미니 막대, 접기) + 데이터셋 하위 행(들여쓰기, 변수=값 칩). 상위 체크박스 = 하위 전체 선택.
   하위 행 클릭 → 결과 입력 패널: 단계·기대결과를 이 행 값으로 치환 + DatasetTable(읽기 전용, 현재 행 강조). 진행률·결과 건수는 데이터 행을 각각 1건으로 집계.
 - Vue 템플릿 `{{ }}` 안에서 `` `{${v}}` `` 금지(`}}`가 보간을 닫음) → `braced(v)` 사용.
+
+### 규칙기반 추천 (3-1)
+- `RuleBasedRecommendationService`가 원자 요구사항 유형별 rule_catalog.generator로 **파라미터화 TC 1개 + 데이터셋 N행** 후보 생성 → `RequirementService.recommend`가 `TestCaseService.createDraft`로 저장
+  (source RULE, review DRAFT, 미분류 폴더, 작성자 없음, 원자 요구사항 링크, 데이터셋).
+- generator JSON: `title`, `steps[{action, expected}]`, `rows[{label, value|flag, expected}]` 또는 `rowsFrom: "options"`(+`label`, `expected`), `step`(경계 간격).
+  `[[text]] [[unit]] [[flag]] [[bonus]]` = 생성 시 원자 요구사항 값으로 치환 / `{value} {option} {flag} {expected}` = TC에 남는 데이터셋 변수. value 식: `min`, `max`, `min±n`, `max±n` (×step).
+- 유형별: 금액 범위 → 경계값 6행(step 1) / 비율 범위 → 경계값 4행(step 0.01) / 기간 조건 → 선택지별 결정 테이블(conditions.options, *_map → {mapped}) / 여부 플래그 → 동등 분할 2행(*bonus* → 가산값).
+- 재실행 시 같은 프로젝트·원자 요구사항·제목·출처의 ACTIVE TC가 있으면 건너뜀(skipped). 범위·조건 값이 없거나 규칙이 없으면 warnings.
+- 단위 표기: KRW→원, percent→%, year→년. 숫자 param은 정수면 Long, 소수면 BigDecimal.
+- RAG·LLM(3-2, 3-3)은 ai-agent 연동 시 RecommendationService 구현을 합성해서 추가.
 
 ### AI 추천/검토 규칙
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
@@ -242,5 +252,6 @@ npm run build
 - ✅ v4-3 TC ↔ 요구사항 다대다 + Traceability
 - ✅ v4-4 나머지 화면 프로젝트 필터링 (대시보드 TC 집계·모듈 목록 프로젝트 기준, TC 상세 전환 처리) — **v4 완료**
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
-- 🔄 파라미터화 TC (docs/09): ✅ A 스키마·백엔드 / ✅ B TC 목록·상세 탭·DatasetTable / ✅ C 차수 상세 테이블 — **완료** (다음: 규칙기반(3-1) 추천이 '파라미터화 TC 1개 + 데이터셋 N행'을 생성하도록 연결)
+- 🔄 파라미터화 TC (docs/09): ✅ A 스키마·백엔드 / ✅ B TC 목록·상세 탭·DatasetTable / ✅ C 차수 상세 테이블 — **완료** 
+- ✅ 규칙기반 추천(3-1) 연결 — 파라미터화 TC + 데이터셋 DRAFT 생성
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

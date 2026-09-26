@@ -40,6 +40,12 @@ public interface TestCaseMapper {
 
     List<TestCaseRun> findRuns(Long testCaseId);
 
+    /** 같은 프로젝트·원자 요구사항·제목·출처의 ACTIVE TC 수 (추천 재실행 시 중복 생성 방지) */
+    int countSameRecommendation(@Param("projectId") Long projectId,
+                                @Param("atomicRequirementId") Long atomicRequirementId,
+                                @Param("title") String title,
+                                @Param("source") TcSource source);
+
     // ── 요구사항 다대다 링크
     List<AtomicRequirementRef> findRequirements(Long testCaseId);
 

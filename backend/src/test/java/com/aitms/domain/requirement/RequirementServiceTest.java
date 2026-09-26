@@ -46,10 +46,6 @@ class RequirementServiceTest {
         assertThat(service.findByProject(1L)).hasSize(2);
     }
 
-    @Test
-    void AI추천은_엔진_연동전까지_빈결과() {
-        assertThat(service.recommend(1L)).isEmpty();
-    }
 
     @Test
     void 규칙카탈로그는_타입별로_조회된다() {

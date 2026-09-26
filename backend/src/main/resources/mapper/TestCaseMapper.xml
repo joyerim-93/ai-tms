@@ -167,6 +167,17 @@
          ORDER BY h.executed_at DESC, h.id DESC
     </select>
 
+    <select id="countSameRecommendation" resultType="int">
+        SELECT COUNT(*)
+          FROM test_case tc
+          JOIN test_case_requirement_link l ON l.test_case_id = tc.id
+         WHERE tc.project_id = #{projectId}
+           AND l.atomic_requirement_id = #{atomicRequirementId}
+           AND tc.title = #{title}
+           AND tc.source = #{source}
+           AND tc.status = 'ACTIVE'
+    </select>
+
     <select id="countExecutions" resultType="int">
         SELECT COUNT(*) FROM test_execution WHERE test_case_id = #{testCaseId}
     </select>

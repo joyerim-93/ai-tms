@@ -45,16 +45,42 @@ INSERT IGNORE INTO atomic_requirement (id, requirement_id, atomic_text, type, mi
     (4, 2, '기존 고객 갈아타기 시 우대금리 0.2%p가 추가된다', 'BOOLEAN_FLAG', NULL, NULL, NULL,
         '{"flag":"existing_customer","bonus_rate":0.2}');
 
--- 5. 규칙 카탈로그
-INSERT IGNORE INTO rule_catalog (id, requirement_type, technique, template) VALUES
+-- 5. 규칙 카탈로그 — generator: 규칙기반 추천이 만드는 '파라미터화 TC 1개 + 데이터셋 N행' 정의
+--    rows[].value: min / max / min-1 / min+1 / max-1 / max+1 (step 단위), rowsFrom=options: 조건 선택지마다 1행
+INSERT IGNORE INTO rule_catalog (id, requirement_type, technique, template, generator) VALUES
     (1, 'AMOUNT_RANGE', 'BOUNDARY_VALUE',
-        '경계값 테스트: {min}-1(실패), {min}(성공), {min}+1(성공), {max}-1(성공), {max}(성공), {max}+1(실패)'),
+        '경계값 테스트: {min}-1(실패), {min}(성공), {min}+1(성공), {max}-1(성공), {max}(성공), {max}+1(실패)',
+        '{"title": "[[text]] — 경계값 분석", "step": 1,
+          "steps": [{"action": "입력값에 {value}[[unit]] 입력", "expected": null},
+                    {"action": "요청 처리", "expected": "{expected}"}],
+          "rows": [{"label": "최소값 미만", "value": "min-1", "expected": "허용 범위 밖 — 오류 안내, 처리 거부"},
+                   {"label": "최소값", "value": "min", "expected": "정상 처리"},
+                   {"label": "최소값 초과", "value": "min+1", "expected": "정상 처리"},
+                   {"label": "최대값 미만", "value": "max-1", "expected": "정상 처리"},
+                   {"label": "최대값", "value": "max", "expected": "정상 처리"},
+                   {"label": "최대값 초과", "value": "max+1", "expected": "허용 범위 밖 — 오류 안내, 처리 거부"}]}'),
     (2, 'RATE_RANGE', 'BOUNDARY_VALUE',
-        '경계값 테스트: {min}% 미만(적용불가), {min}%(최소금리 적용), {max}%(최대금리 적용), {max}% 초과(적용불가)'),
+        '경계값 테스트: {min}% 미만(적용불가), {min}%(최소금리 적용), {max}%(최대금리 적용), {max}% 초과(적용불가)',
+        '{"title": "[[text]] — 경계값 분석", "step": 0.01,
+          "steps": [{"action": "적용 값 {value}[[unit]] 로 설정", "expected": null},
+                    {"action": "적용 결과 확인", "expected": "{expected}"}],
+          "rows": [{"label": "최소값 미만", "value": "min-1", "expected": "범위 밖 — 적용 불가"},
+                   {"label": "최소값", "value": "min", "expected": "최소값 적용"},
+                   {"label": "최대값", "value": "max", "expected": "최대값 적용"},
+                   {"label": "최대값 초과", "value": "max+1", "expected": "범위 밖 — 적용 불가"}]}'),
     (3, 'PERIOD_CONDITION', 'DECISION_TABLE',
-        '조건별 디시전테이블: 거치기간 옵션 각각에 대해 매핑된 금리가 정확히 적용되는지 검증'),
+        '조건별 디시전테이블: 거치기간 옵션 각각에 대해 매핑된 금리가 정확히 적용되는지 검증',
+        '{"title": "[[text]] — 조건별 결정 테이블",
+          "steps": [{"action": "조건 {option} 선택", "expected": null},
+                    {"action": "처리 진행 후 적용 값 확인", "expected": "{expected}"}],
+          "rowsFrom": "options", "label": "{option}", "expected": "{option} 선택 시 매핑 값 {mapped} 적용"}'),
     (4, 'BOOLEAN_FLAG', 'EQUIVALENCE_PARTITION',
-        '동등분할: 플래그 true(우대금리 적용됨), 플래그 false(우대금리 미적용)');
+        '동등분할: 플래그 true(우대금리 적용됨), 플래그 false(우대금리 미적용)',
+        '{"title": "[[text]] — 동등 분할",
+          "steps": [{"action": "[[flag]] = {flag} 인 대상으로 진행", "expected": null},
+                    {"action": "결과 확인", "expected": "{expected}"}],
+          "rows": [{"label": "조건 충족", "flag": true, "expected": "혜택 적용[[bonus]]"},
+                   {"label": "조건 미충족", "flag": false, "expected": "혜택 미적용"}]}');
 
 -- 6-0. 테스트케이스 폴더 (docs/05-schema-add-folders.sql)
 INSERT IGNORE INTO test_case_folder (id, project_id, parent_folder_id, name, sort_order) VALUES

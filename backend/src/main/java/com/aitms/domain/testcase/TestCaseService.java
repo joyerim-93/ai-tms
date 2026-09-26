@@ -2,6 +2,7 @@ package com.aitms.domain.testcase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aitms.common.ApiException;
 import com.aitms.common.CurrentUser;
 import com.aitms.common.PageResponse;
+import com.aitms.common.Priority;
+import com.aitms.domain.recommend.TcRecommendation;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +26,7 @@ public class TestCaseService {
     private final TestCaseMapper mapper;
     private final TestCaseFolderService folderService;
     private final TestCaseDatasetMapper datasetMapper;
+    private final ObjectMapper objectMapper;
 
     /** folderId 지정 시 하위 폴더 TC까지 포함 */
     public PageResponse<TestCase> search(TestCaseSearch search) {
@@ -72,6 +78,53 @@ public class TestCaseService {
         mapper.deleteRequirementLinks(id);
         saveRequirementLinks(id, tc.getProjectId(), req.atomicRequirementIds());
         return get(id);
+    }
+
+    /**
+     * 추천 후보를 DRAFT TC로 저장 — 파라미터화 TC + 데이터셋, 원자 요구사항 링크, 미분류 폴더, 작성자 없음(시스템).
+     *
+     * @return 저장된 TC, 같은 추천 TC가 이미 있으면 empty
+     */
+    @Transactional
+    public Optional<TestCase> createDraft(TcRecommendation rec, Long projectId) {
+        if (mapper.countSameRecommendation(projectId, rec.atomicRequirementId(), rec.title(), rec.source()) > 0) {
+            return Optional.empty();
+        }
+        TestCase tc = new TestCase();
+        tc.setProjectId(projectId);
+        tc.setTitle(rec.title());
+        tc.setPriority(Priority.MEDIUM);
+        tc.setStatus(TestCaseStatus.ACTIVE);
+        tc.setTechnique(rec.technique());
+        tc.setIsParameterized(rec.parameterized());
+        tc.setSource(rec.source());
+        tc.setReviewStatus(ReviewStatus.DRAFT);
+        tc.setOriginProjectId(rec.originProjectId());
+        mapper.insert(tc);
+
+        saveSteps(tc.getId(), rec.steps().stream()
+                .map(s -> new TestCaseRequest.StepRequest(s.action(), s.expectedResult()))
+                .toList());
+        saveRequirementLinks(tc.getId(), projectId, List.of(rec.atomicRequirementId()));
+        int order = 1;
+        for (TcRecommendation.DatasetRow row : rec.datasetRows()) {
+            TestCaseDataset d = new TestCaseDataset();
+            d.setTestCaseId(tc.getId());
+            d.setRowLabel(row.rowLabel());
+            d.setParamValues(toJson(row.paramValues()));
+            d.setExpectedResultOverride(row.expectedResultOverride());
+            d.setSortOrder(order++);
+            datasetMapper.insert(d);
+        }
+        return Optional.of(get(tc.getId()));
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** '연결된 요구사항' 탭에서 링크만 교체 */

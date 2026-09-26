@@ -69,7 +69,11 @@ CREATE TABLE IF NOT EXISTS rule_catalog (
                      CHECK (requirement_type IN ('AMOUNT_RANGE', 'RATE_RANGE', 'PERIOD_CONDITION', 'BOOLEAN_FLAG')),
     technique        VARCHAR(30)   NOT NULL
                      CHECK (technique IN ('BOUNDARY_VALUE', 'EQUIVALENCE_PARTITION', 'DECISION_TABLE')),
-    template         VARCHAR(2000) NOT NULL            -- {min}, {max} 치환
+    template         VARCHAR(2000) NOT NULL,           -- 사람이 읽는 규칙 설명 ({min}, {max})
+    -- 추천 생성 규칙 JSON: 파라미터화 TC 1개 + 데이터셋 N행
+    --   [[text]] [[unit]] [[flag]] [[bonus]] = 생성 시점 치환(원자 요구사항 값)
+    --   {value} {option} {flag} {expected} = TC 단계에 남는 데이터셋 변수
+    generator        VARCHAR(4000)
 );
 
 -- ─────────────────────────────── ② 테스트케이스 폴더 (프로젝트별 트리, 다단계 중첩)

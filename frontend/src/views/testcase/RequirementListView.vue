@@ -56,16 +56,25 @@ async function create() {
   }
 }
 
+// 규칙기반 추천 → DRAFT 파라미터화 TC 생성 (미분류 폴더). 결과는 펼친 요구사항 안에 표시
+const recommending = ref(false)
+const recommendResult = ref(null) // { created, skipped, warnings }
 async function recommend(id) {
   error.value = ''
   message.value = ''
+  recommending.value = true
   try {
-    const list = await requirementApi.recommend(id)
-    message.value = list.length
-      ? `추천 결과 ${list.length}건`
-      : 'AI 추천 엔진이 아직 연동되지 않았습니다 (추천 0건). 에이전트 연동 후 DRAFT TC로 생성됩니다.'
+    recommendResult.value = await requirementApi.recommend(id)
+    const { created, skipped } = recommendResult.value
+    message.value = created.length
+      ? `규칙기반 추천으로 검토대기(DRAFT) 테스트케이스 ${created.length}건을 만들었습니다${skipped ? ` (이미 있는 ${skipped}건 제외)` : ''}. 검토 후 승인하세요.`
+      : `새로 만들 추천이 없습니다${skipped ? ` — 같은 추천 TC ${skipped}건이 이미 있습니다` : ''}.`
+    await load()
+    expanded.value = await requirementApi.get(id) // 커버 TC 목록 갱신
   } catch (e) {
     error.value = e.message
+  } finally {
+    recommending.value = false
   }
 }
 
@@ -157,10 +166,24 @@ onMounted(async () => {
               <div class="detail">
                 <div class="detail-head">
                   <div class="label">원문</div>
-                  <button class="btn btn-sm btn-primary" @click="recommend(r.id)">✨ AI 추천 실행</button>
+                  <button class="btn btn-sm btn-primary" :disabled="recommending" title="현재: 규칙기반(규칙 카탈로그). RAG·LLM은 ai-agent 연동 후" @click="recommend(r.id)">
+                    ✨ {{ recommending ? '추천 중…' : 'AI 추천 실행' }}
+                  </button>
                 </div>
                 <p class="pre raw">{{ expanded.description }}</p>
-                <p v-if="message" class="message">{{ message }}</p>
+                <div v-if="message" class="message">
+                  {{ message }}
+                  <ul v-if="recommendResult?.created.length" class="created">
+                    <li v-for="t in recommendResult.created" :key="t.id">
+                      <RouterLink :to="`/test-cases/${t.id}?tab=dataset`" class="mono">{{ t.tcCode }}</RouterLink>
+                      {{ t.title }}
+                      <span class="chip chip-accent">🔢 {{ t.datasets.length }}</span>
+                    </li>
+                  </ul>
+                  <ul v-if="recommendResult?.warnings.length" class="warnings">
+                    <li v-for="w in recommendResult.warnings" :key="w">⚠ {{ w }}</li>
+                  </ul>
+                </div>
 
                 <div class="label">원자 요구사항 ({{ expanded.atomics.length }})</div>
                 <table v-if="expanded.atomics.length" class="table inner">
@@ -265,6 +288,18 @@ tr.selected {
 .table.inner {
   background: var(--surface-card);
   border-radius: var(--radius-md);
+}
+.created,
+.warnings {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+.created li,
+.warnings li {
+  margin-top: var(--space-1);
+}
+.warnings {
+  color: var(--badge-progress-text);
 }
 .rule {
   cursor: help;

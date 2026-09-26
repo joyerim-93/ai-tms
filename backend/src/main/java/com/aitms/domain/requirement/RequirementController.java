@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aitms.domain.recommend.TcRecommendation;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,7 +46,7 @@ public class RequirementController {
     }
 
     @PostMapping("/{id}/recommend")
-    public List<TcRecommendation> recommend(@PathVariable Long id) {
+    public RecommendResponse recommend(@PathVariable Long id) {
         return service.recommend(id);
     }
 }

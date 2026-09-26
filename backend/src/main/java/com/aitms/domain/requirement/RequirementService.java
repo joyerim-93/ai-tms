@@ -1,6 +1,8 @@
 package com.aitms.domain.requirement;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -11,7 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aitms.common.ApiException;
 import com.aitms.common.Priority;
 import com.aitms.domain.recommend.RecommendationService;
+import com.aitms.domain.recommend.RecommendationResult;
 import com.aitms.domain.recommend.TcRecommendation;
+import com.aitms.domain.testcase.TestCase;
+import com.aitms.domain.testcase.TestCaseService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +27,7 @@ public class RequirementService {
 
     private final RequirementMapper mapper;
     private final RecommendationService recommendationService;
+    private final TestCaseService testCaseService;
 
     public List<Requirement> findByProject(Long projectId) {
         return mapper.findByProject(projectId);
@@ -54,9 +60,24 @@ public class RequirementService {
         return get(r.getId());
     }
 
-    /** AI 추천 트리거 — 현재는 NoopRecommendationService (빈 결과) */
-    public List<TcRecommendation> recommend(Long id) {
-        get(id);
-        return recommendationService.recommend(id);
+    /**
+     * 추천 실행 — 후보를 DRAFT TC로 저장(같은 추천 TC가 있으면 건너뜀). 사람이 TC 상세에서 승인/반려.
+     * 현재 후보 엔진: 규칙기반(RuleBasedRecommendationService)
+     */
+    @Transactional
+    public RecommendResponse recommend(Long id) {
+        Requirement req = get(id);
+        RecommendationResult result = recommendationService.recommend(id);
+        List<TestCase> created = new ArrayList<>();
+        int skipped = 0;
+        for (TcRecommendation rec : result.candidates()) {
+            Optional<TestCase> tc = testCaseService.createDraft(rec, req.getProjectId());
+            if (tc.isPresent()) {
+                created.add(tc.get());
+            } else {
+                skipped++;
+            }
+        }
+        return new RecommendResponse(created, skipped, result.warnings());
     }
 }

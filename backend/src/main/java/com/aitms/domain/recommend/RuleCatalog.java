@@ -13,5 +13,6 @@ public class RuleCatalog {
     private Long id;
     private RequirementType requirementType;
     private TestTechnique technique;
-    private String template;
+    private String template;   // 사람이 읽는 규칙 설명
+    private String generator;  // 생성 규칙 JSON (파라미터화 TC + 데이터셋)
 }
