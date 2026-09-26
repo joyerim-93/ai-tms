@@ -64,6 +64,8 @@ ai-tms/
 - **requirement**(project_id, req_code `REQ-001`, title, description=원문, source `MANUAL|PMS`, priority) — AI 추천 입력
 - **atomic_requirement**(requirement_id, atomic_text, type `AMOUNT_RANGE|RATE_RANGE|PERIOD_CONDITION|BOOLEAN_FLAG`, min/max_value, unit, conditions JSON) — AI 에이전트가 원문을 분해한 결과
 - **rule_catalog**(requirement_type, technique, template `{min}/{max}` 치환) — 규칙기반 추천
+- **test_case_dataset**(test_case_id, row_label, param_values JSON, expected_result_override, sort_order) — 파라미터화 TC(test_case.is_parameterized) 데이터 행
+- **test_execution.dataset_id** — 파라미터화 TC는 데이터셋 행마다 실행 항목 1건 (NULL = TC 단위)
 - **test_case_requirement_link**(test_case_id, atomic_requirement_id, UNIQUE, 양쪽 ON DELETE CASCADE) — TC ↔ 원자 요구사항 **다대다**(Zephyr Traceability). test_case.atomic_requirement_id는 삭제됨.
 - 추적: requirement → atomic_requirement ⇄ test_case_requirement_link ⇄ test_case.
 - **test_cycle**(차수: project_id, cycle_no, name, 기간, status `PLANNED|IN_PROGRESS|CLOSED`)
@@ -77,7 +79,7 @@ ai-tms/
 ### 스키마/데이터 규칙
 - 스키마 변경 시 schema.sql 수정 → IF NOT EXISTS라 기존 DB엔 반영 안 됨 → 개발 중엔 `backend/data/` 삭제 후 재기동.
 - data.sql은 `INSERT IGNORE INTO`만 사용 — 재기동 시 중복·덮어쓰기 없음(사용자가 바꾼 샘플 데이터 유지). 명시 id로 넣어도 H2가 identity를 자동 조정함(테스트로 확인).
-- 코드 채번(TC-00001, REQ-001, DF-0001)은 모두 `MAX(번호)+1` 방식 → 샘플의 명시 코드와 충돌 없음.
+- 코드 채번(TC Key `TC-101`~, REQ-001, DF-0001)은 모두 `MAX(번호)+1` 방식 → 샘플의 명시 코드와 충돌 없음. TC Key는 `tc_code`(전역 순번, 'TC-숫자'만 집계, 최소 101), 화면 표기 **Key**.
 - 샘플(docs/02-sample-data.sql 변환): 사용자 1 qa.kim 김큐에이(QA), 2 dev.park 박개발(DEV), 3 qa.lee 이큐에이(QA), 4 biz.choi(BIZ), 5 admin / 프로젝트 1 `KB-SAVING` KB 적금 통장 신설, 2 `KB-SWITCH` 갈아타기(과거, RAG 원본) / 요구사항 REQ-001 + 원자 4 + 규칙 4 / TC 11(RULE·RAG·LLM, DRAFT 5) / 1차 통합테스트(PASS4·FAIL1·BLOCKED1·미수행3) / 결함 DF-0001. **인증 도입 전까지 로그인 사용자 = id 1(qa.kim)**.
 - 서비스 테스트는 샘플과 분리하려고 테스트 전용 프로젝트(id 99/98)를 `@BeforeEach`에서 넣어 사용.
 - 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
@@ -147,6 +149,9 @@ ai-tms/
 | POST | `/api/test-cases/import` `{projectId, testCaseIds, folderId}` | 다른 프로젝트 APPROVED·ACTIVE TC를 새 row로 복제 |
 | GET / POST | `/api/projects/{id}/folders` `{name, parentFolderId}` | 폴더 트리(roots/totalCount/unfiledCount) / 생성(형제 중 마지막, 같은 이름 409) |
 | POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
+| GET / POST / PUT / DELETE | `/api/test-cases/{id}/datasets[/{rowId}]` `{rowLabel, paramValues:{}, expectedResultOverride}` | 데이터셋 행 CRUD (행 단위 — 실행 항목이 참조, 실행된 행 삭제 409) |
+| PUT | `/api/test-cases/{id}/requirements` `{atomicRequirementIds}` | 연결 요구사항 교체 ('연결된 요구사항' 탭) |
+| GET | `/api/test-cases/{id}/runs` | 실행 이력 (모든 차수, 시간 역순, 데이터 행 포함) |
 | PATCH | `/api/test-cases/{id}/review` `{reviewStatus}` | AI 추천 TC 승인/반려 (검토자=CurrentUser) |
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
@@ -169,6 +174,13 @@ ai-tms/
 - TC 상세 `requirements[]`(AtomicRequirementRef), 목록 `requirementCount`. 요구사항 목록 `testCaseCount`(중복 제거 TC 수)·`coveredAtomicCount`(TC 1건 이상 연결된 원자 수).
 - 다른 프로젝트에서 가져온 TC·RAG 추천 TC의 참고 출처는 링크가 아니라 `origin_project_id`로 표시 (샘플 TC 8·9는 링크 없음).
 - 화면: TC 폼 '검증하는 요구사항'(RequirementLinkPicker, 원문별 그룹 체크), TC 상세 목록(→ `/test-cases/requirements?req=<id>`로 펼침), 요구사항 탭 원자별 커버 TC + '미커버' 표시, 커버리지 M/N.
+
+### 파라미터화 TC 규칙 (docs/08·09)
+- 단계의 수행 절차/기대 결과에 `{변수}` 사용. 데이터셋 행 `paramValues`로 치환, `{expected}`는 행의 `expectedResultOverride`. **치환은 프론트**(백엔드는 원본 텍스트 + JSON만 — `@JsonRawValue`로 객체 그대로 내려줌).
+- 변수명: 문자·숫자·_ (첫 글자 숫자 불가), 값은 스칼라만.
+- 차수 등록: 파라미터화 TC는 데이터셋 행마다 실행 항목 생성, 재등록 시 새로 추가된 데이터 행만 생성. 데이터 행이 없으면 TC 단위 1건.
+- 실행된 데이터 행은 삭제 불가(409). 다른 프로젝트에서 가져오기 시 데이터셋도 복제.
+- 샘플: TC-114(가입금액 경계값, 데이터 4행)가 TC-101~104를 대체 → 101~104는 DEPRECATED.
 
 ### AI 추천/검토 규칙
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
@@ -222,4 +234,5 @@ npm run build
 - ✅ v4-3 TC ↔ 요구사항 다대다 + Traceability
 - ✅ v4-4 나머지 화면 프로젝트 필터링 (대시보드 TC 집계·모듈 목록 프로젝트 기준, TC 상세 전환 처리) — **v4 완료**
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
+- 🔄 파라미터화 TC (docs/09): ✅ A 스키마·백엔드 / ⏳ B TC 목록·상세 탭·DatasetTable / ⏳ C 차수 상세 테이블
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
