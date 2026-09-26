@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.dashboard.DashboardMapper">
+
+    <!-- 내 할일(TC) = 종료되지 않은 차수에서 나에게 배정된 미수행 항목 -->
+    <sql id="myPendingWhere">
+          FROM test_execution e
+          JOIN test_cycle c ON c.id = e.cycle_id
+          JOIN test_case tc ON tc.id = e.test_case_id
+         WHERE c.project_id = #{projectId}
+           AND c.status != 'CLOSED'
+           AND e.assignee_id = #{userId}
+           AND e.result = 'NOT_RUN'
+    </sql>
+
+    <select id="countMyPendingExecutions" resultType="long">
+        SELECT COUNT(*)
+        <include refid="myPendingWhere"/>
+    </select>
+
+    <select id="findMyPendingExecutions" resultType="com.aitms.dashboard.MyExecution">
+        SELECT e.id, e.cycle_id, c.cycle_no, c.name AS cycle_name,
+               tc.tc_code, tc.title AS tc_title, tc.priority AS tc_priority
+        <include refid="myPendingWhere"/>
+         ORDER BY c.cycle_no DESC,
+                  CASE tc.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
+                  tc.tc_code
+         LIMIT #{limit}
+    </select>
+</mapper>
