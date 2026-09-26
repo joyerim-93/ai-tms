@@ -29,6 +29,7 @@ ai-tms/
 │     │  ├─ execution/           ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*, 요청 DTO는 ExecutionRequests)
 │     │  ├─ project/             프로젝트/멤버 조회
 │     │  ├─ defect/              ✅ 결함관리 (DefectStatus에 상태 전이 규칙, DefectRequests)
+│     │  ├─ dashboard/           ✅ 대시보드 요약 (DashboardSummary 한 번에 반환)
 │     │  ├─ recommend/           RecommendationService 인터페이스 + Noop 구현 (AI 추천 자리)
 │     │  └─ <도메인>/            controller · service · mapper(인터페이스) · dto — 도메인별 패키지
 │     └─ resources/
@@ -130,6 +131,7 @@ ai-tms/
 | GET / POST / PUT | `/api/defects[/{id}]` | 결함 상세/등록/수정 (응답에 `nextStatuses`, 삭제 API 없음 → REJECTED) |
 | POST | `/api/defects/{id}/status` `{status, comment}` | 상태 전이 (규칙 위반 409) + 이력 기록 |
 | GET / POST | `/api/defects/{id}/comments` | 코멘트·상태이력 타임라인 / 코멘트 추가 |
+| GET | `/api/dashboard?projectId` | 대시보드 KPI + 내 미수행 TC·내 담당 결함 상위 10건 |
 
 TC 코드는 `tc_code_seq` 시퀀스로 `TC-00001` 형식 채번.
 
@@ -163,3 +165,13 @@ npm run build
 - 상태 변경·코멘트 모두 `defect_comment`에 저장 (statusFrom/To 있으면 상태 변경 이력).
 - 수행 항목 연결: 결과 패널(FAIL/BLOCKED)의 '결함 등록' → `/defects/new?executionId=` 로 진입, 제목·본문 템플릿 자동 채움. 다른 프로젝트 수행 항목 연결은 400.
 - 표시명/칩 색: `labels.js`의 `DEFECT_STATUS`, `SEVERITY` (`{label, chip}`) + `<LabelChip :map :value>`.
+
+### 대시보드 기준 (로그인 사용자 = CurrentUser, 헤더 선택 프로젝트)
+- 내 할일 = 내 미수행 TC(종료되지 않은 차수, 내 담당, NOT_RUN) + 내 담당 미해결 결함.
+- 이번 차수 = IN_PROGRESS 중 최신 차수 → 없으면 PLANNED 중 최신 → 없으면 없음. 진행률·실패 TC 수는 이 차수 기준.
+- 미해결 결함 = 프로젝트 전체 NEW/OPEN/IN_PROGRESS (치명 건수 별도).
+- 내 미수행 TC 클릭 → `/cycles/{cycleId}?exec={executionId}` 로 이동해 결과 입력 패널 자동 오픈.
+
+## 진행 현황
+- ✅ 골격 / 스키마 / ② TC 저장소 / ③ 테스트수행 / ④ 결함 / ① 대시보드
+- ⏳ 이후 후보: Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
