@@ -13,10 +13,15 @@ public interface TestExecutionMapper {
 
     Optional<TestExecution> findById(Long id);
 
-    /** 차수와 같은 프로젝트의 ACTIVE·APPROVED 이고 아직 차수에 없는 TC만 등록, 등록 건수 반환 */
+    /** 차수와 같은 프로젝트의 ACTIVE·APPROVED 이고 아직 차수에 없는 일반 TC 등록 (TC 단위 1행), 등록 건수 반환 */
     int insertAll(@Param("cycleId") Long cycleId,
                   @Param("testCaseIds") List<Long> testCaseIds,
                   @Param("assigneeId") Long assigneeId);
+
+    /** 파라미터화 TC는 데이터셋 행마다 실행 항목 생성, 생성 건수 반환 */
+    int insertDatasetRows(@Param("cycleId") Long cycleId,
+                          @Param("testCaseIds") List<Long> testCaseIds,
+                          @Param("assigneeId") Long assigneeId);
 
     int updateAssignee(@Param("cycleId") Long cycleId,
                        @Param("executionIds") List<Long> executionIds,

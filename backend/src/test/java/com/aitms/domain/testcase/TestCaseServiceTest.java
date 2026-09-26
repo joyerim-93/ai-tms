@@ -26,7 +26,7 @@ class TestCaseServiceTest {
     JdbcTemplate jdbc;
 
     private TestCaseRequest request(String title, String module, List<StepRequest> steps) {
-        return new TestCaseRequest(1L, null, title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", null, null, steps);
+        return new TestCaseRequest(1L, null, title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", null, null, null, steps);
     }
 
     @Test
@@ -34,8 +34,8 @@ class TestCaseServiceTest {
         TestCase tc = service.create(request("로그인 성공", "인증",
                 List.of(new StepRequest("ID/PW 입력", null), new StepRequest("로그인 클릭", "메인 이동"))));
 
-        assertThat(tc.getTcCode()).matches("TC-\\d{5}");
-        assertThat(tc.getTcCode()).isGreaterThan("TC-00011"); // 샘플 코드 다음 번호
+        assertThat(tc.getTcCode()).matches("TC-\\d+");
+        assertThat(Integer.parseInt(tc.getTcCode().substring(3))).isGreaterThan(114); // 샘플 TC-101~114 다음 번호
         assertThat(tc.getSource()).isEqualTo(TcSource.MANUAL);
         assertThat(tc.getReviewStatus()).isEqualTo(ReviewStatus.APPROVED);
         assertThat(tc.getVersion()).isEqualTo(1);
@@ -88,7 +88,7 @@ class TestCaseServiceTest {
 
     @Test
     void AI추천_DRAFT_TC를_승인하면_검토자와_일시가_기록된다() {
-        // 샘플 TC-00004: RULE 출처 DRAFT
+        // 샘플 TC-104: RULE 출처 DRAFT
         TestCase draft = service.get(4L);
         assertThat(draft.getReviewStatus()).isEqualTo(ReviewStatus.DRAFT);
         assertThat(draft.getSource()).isEqualTo(TcSource.RULE);
@@ -106,14 +106,14 @@ class TestCaseServiceTest {
         search.setSource(TcSource.RAG);
         search.setReviewStatus(ReviewStatus.DRAFT);
 
-        assertThat(service.search(search).items()).extracting(TestCase::getTcCode).containsExactly("TC-00009", "TC-00008");
+        assertThat(service.search(search).items()).extracting(TestCase::getTcCode).containsExactly("TC-109", "TC-108");
         assertThat(service.search(search).items().get(0).getOriginProjectName()).isEqualTo("KB 자유적금 갈아타기 이벤트");
     }
 
     // ── 요구사항 다대다
 
     private TestCaseRequest linked(String title, List<Long> atomicIds) {
-        return new TestCaseRequest(1L, null, title, null, null, Priority.MEDIUM, null, null, null, atomicIds, List.of());
+        return new TestCaseRequest(1L, null, title, null, null, Priority.MEDIUM, null, null, null, null, atomicIds, List.of());
     }
 
     @Test

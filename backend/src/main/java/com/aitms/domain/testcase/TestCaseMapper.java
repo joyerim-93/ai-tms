@@ -38,6 +38,8 @@ public interface TestCaseMapper {
 
     int countExecutions(Long testCaseId);
 
+    List<TestCaseRun> findRuns(Long testCaseId);
+
     // ── 요구사항 다대다 링크
     List<AtomicRequirementRef> findRequirements(Long testCaseId);
 

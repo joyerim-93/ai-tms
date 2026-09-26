@@ -24,6 +24,9 @@ public class TestCase {
     private Priority priority;
     private TestCaseStatus status;
     private String tags;
+    private Boolean isParameterized;       // 데이터 기반 반복 실행
+    private int datasetCount;              // 목록 조회: 데이터셋 행 수
+    private List<TestCaseDataset> datasets; // 상세 조회: 데이터셋 행
     private Long authorId;
     private String authorName;     // NULL이면 시스템/AI 생성
     private Integer version;

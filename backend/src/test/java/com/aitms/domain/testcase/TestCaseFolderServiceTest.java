@@ -40,7 +40,8 @@ class TestCaseFolderServiceTest {
         assertThat(rate.getChildren()).extracting(TestCaseFolder::getName).containsExactly("거치기간별 금리", "우대금리");
         assertThat(rate.getTestCaseCount()).isZero();
         assertThat(rate.getTotalCount()).isEqualTo(6);          // 4번 폴더 4건 + 5번 폴더 2건
-        assertThat(tree.totalCount()).isEqualTo(11);
+        assertThat(tree.roots().get(0).getTotalCount()).isEqualTo(6); // 가입금액 검증: TC 1~4, 10, 14(파라미터화)
+        assertThat(tree.totalCount()).isEqualTo(12);
         assertThat(tree.unfiledCount()).isZero();
     }
 
@@ -50,7 +51,7 @@ class TestCaseFolderServiceTest {
         byParent.setFolderId(2L); // 금리 정책
         assertThat(testCaseService.search(byParent).total()).isEqualTo(6);
 
-        testCaseService.create(new TestCaseRequest(1L, null, "미분류 TC", null, null, Priority.LOW, null, null, null, null, List.of()));
+        testCaseService.create(new TestCaseRequest(1L, null, "미분류 TC", null, null, Priority.LOW, null, null, null, null, null, List.of()));
         TestCaseSearch unfiled = search(1L);
         unfiled.setUnfiled(true);
         assertThat(testCaseService.search(unfiled).items()).extracting(TestCase::getTitle).containsExactly("미분류 TC");
@@ -71,7 +72,7 @@ class TestCaseFolderServiceTest {
     @Test
     void 다른_프로젝트_폴더에는_TC를_넣을_수_없다() {
         assertThatThrownBy(() -> testCaseService.create(
-                new TestCaseRequest(2L, 3L, "x", null, null, Priority.LOW, null, null, null, null, List.of())))
+                new TestCaseRequest(2L, 3L, "x", null, null, Priority.LOW, null, null, null, null, null, List.of())))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -83,7 +84,7 @@ class TestCaseFolderServiceTest {
         assertThat(imported).hasSize(2);
         TestCase copy = imported.get(0);
         assertThat(copy.getId()).isNotEqualTo(12L);
-        assertThat(copy.getTcCode()).isNotEqualTo("TC-00012");
+        assertThat(copy.getTcCode()).isNotEqualTo("TC-112");
         assertThat(copy.getProjectId()).isEqualTo(1L);
         assertThat(copy.getFolderName()).isEqualTo("우대금리");
         assertThat(copy.getOriginProjectId()).isEqualTo(2L);

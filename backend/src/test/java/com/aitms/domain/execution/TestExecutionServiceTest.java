@@ -53,7 +53,7 @@ class TestExecutionServiceTest {
     }
 
     private Long createTc(String title, TestCaseStatus status) {
-        return testCaseService.create(new TestCaseRequest(PROJECT, null, title, null, null, Priority.MEDIUM, status, null, null, null, List.of())).getId();
+        return testCaseService.create(new TestCaseRequest(PROJECT, null, title, null, null, Priority.MEDIUM, status, null, null, null, null, List.of())).getId();
     }
 
     private TestCycle createCycle(String name) {

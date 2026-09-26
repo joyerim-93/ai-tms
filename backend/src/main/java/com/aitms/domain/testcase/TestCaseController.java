@@ -60,6 +60,18 @@ public class TestCaseController {
         return service.importFrom(req);
     }
 
+    /** 연결된 요구사항 교체 (다대다) */
+    @PutMapping("/{id}/requirements")
+    public TestCase replaceRequirements(@PathVariable Long id, @RequestBody RequirementLinkRequest req) {
+        return service.replaceRequirements(id, req.atomicRequirementIds());
+    }
+
+    /** 실행 이력 — 이 TC가 각 차수에서 받은 결과 */
+    @GetMapping("/{id}/runs")
+    public List<TestCaseRun> runs(@PathVariable Long id) {
+        return service.runs(id);
+    }
+
     @PatchMapping("/{id}/review")
     public TestCase review(@PathVariable Long id, @Validated @RequestBody TestCaseRequest.ReviewRequest req) {
         return service.review(id, req.reviewStatus());

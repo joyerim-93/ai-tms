@@ -51,7 +51,7 @@ class DashboardServiceTest {
     @Autowired DefectService defectService;
 
     private Long tc(String title) {
-        return testCaseService.create(new TestCaseRequest(P, null, title, null, null, Priority.MEDIUM, null, null, null, null, List.of())).getId();
+        return testCaseService.create(new TestCaseRequest(P, null, title, null, null, Priority.MEDIUM, null, null, null, null, null, List.of())).getId();
     }
 
     private TestCycle cycle(String name, List<Long> tcIds, Long assignee) {

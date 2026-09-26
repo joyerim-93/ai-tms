@@ -46,7 +46,8 @@
     <select id="search" resultType="com.aitms.domain.testcase.TestCase">
         SELECT j.*,
                (SELECT COUNT(*) FROM test_step s WHERE s.test_case_id = j.id) AS step_count,
-               (SELECT COUNT(*) FROM test_case_requirement_link l WHERE l.test_case_id = j.id) AS requirement_count
+               (SELECT COUNT(*) FROM test_case_requirement_link l WHERE l.test_case_id = j.id) AS requirement_count,
+               (SELECT COUNT(*) FROM test_case_dataset d WHERE d.test_case_id = j.id) AS dataset_count
           FROM (<include refid="selectJoined"/> <include refid="searchWhere"/>) j
          ORDER BY j.id DESC
          LIMIT #{size} OFFSET #{offset}
@@ -73,13 +74,13 @@
          ORDER BY module
     </select>
 
-    <!-- TC 코드: TC-00001 형식 max+1 (샘플 데이터의 명시 코드와 충돌하지 않도록 시퀀스 대신 MAX 사용) -->
+    <!-- Key(tc_code): TC-101부터 전역 순번 max+1. 'TC-숫자' 형식만 집계 (샘플 명시 코드와 충돌 없음) -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO test_case (tc_code, project_id, folder_id, title, module, precondition, priority, status, tags,
+        INSERT INTO test_case (tc_code, project_id, folder_id, title, module, precondition, priority, status, tags, is_parameterized,
                                source, technique, review_status, origin_project_id, author_id)
-        VALUES ((SELECT CONCAT('TC-', LPAD(CAST(COALESCE(MAX(CAST(SUBSTRING(tc_code, 4) AS INT)), 0) + 1 AS VARCHAR), 5, '0'))
-                   FROM test_case WHERE tc_code LIKE 'TC-%'),
-                #{projectId}, #{folderId}, #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags},
+        VALUES ((SELECT CONCAT('TC-', CAST(GREATEST(COALESCE(MAX(CAST(SUBSTRING(tc_code, 4) AS INT)), 100) + 1, 101) AS VARCHAR))
+                   FROM test_case WHERE REGEXP_LIKE(tc_code, '^TC-[0-9]+$')),
+                #{projectId}, #{folderId}, #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags}, #{isParameterized},
                 #{source}, #{technique}, #{reviewStatus}, #{originProjectId}, #{authorId})
     </insert>
 
@@ -93,6 +94,7 @@
                status                = #{status},
                tags                  = #{tags},
                technique             = #{technique},
+               is_parameterized      = #{isParameterized},
                version               = version + 1,
                updated_at            = CURRENT_TIMESTAMP
          WHERE id = #{id}
@@ -148,6 +150,21 @@
           JOIN requirement r ON r.id = a.requirement_id
          WHERE r.project_id = #{projectId}
            AND a.id IN <foreach collection="atomicIds" item="aid" open="(" separator="," close=")">#{aid}</foreach>
+    </select>
+
+    <!-- ── 실행 이력(이 TC가 각 차수에서 받은 결과, 시간 역순) -->
+    <select id="findRuns" resultType="com.aitms.domain.testcase.TestCaseRun">
+        SELECT h.id, h.execution_id, h.result, h.comment, h.executed_at,
+               u.name AS executed_by_name,
+               c.id AS cycle_id, c.cycle_no, c.name AS cycle_name,
+               d.id AS dataset_id, d.row_label AS dataset_label
+          FROM test_execution_history h
+          JOIN test_execution e         ON e.id = h.execution_id
+          JOIN test_cycle c             ON c.id = e.cycle_id
+          LEFT JOIN test_case_dataset d ON d.id = e.dataset_id
+          LEFT JOIN users u             ON u.id = h.executed_by
+         WHERE e.test_case_id = #{testCaseId}
+         ORDER BY h.executed_at DESC, h.id DESC
     </select>
 
     <select id="countExecutions" resultType="int">

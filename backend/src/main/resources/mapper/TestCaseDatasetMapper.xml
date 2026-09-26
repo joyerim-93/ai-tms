@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.testcase.TestCaseDatasetMapper">
+
+    <select id="findByTestCase" resultType="com.aitms.domain.testcase.TestCaseDataset">
+        SELECT * FROM test_case_dataset WHERE test_case_id = #{testCaseId} ORDER BY sort_order, id
+    </select>
+
+    <select id="findById" resultType="com.aitms.domain.testcase.TestCaseDataset">
+        SELECT * FROM test_case_dataset WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO test_case_dataset (test_case_id, row_label, param_values, expected_result_override, sort_order)
+        VALUES (#{testCaseId}, #{rowLabel}, #{paramValues}, #{expectedResultOverride},
+        <choose>
+            <when test="sortOrder != null">#{sortOrder}</when>
+            <otherwise>(SELECT COALESCE(MAX(sort_order), 0) + 1 FROM test_case_dataset WHERE test_case_id = #{testCaseId})</otherwise>
+        </choose>)
+    </insert>
+
+    <update id="update">
+        UPDATE test_case_dataset
+           SET row_label                = #{rowLabel},
+               param_values             = #{paramValues},
+               expected_result_override = #{expectedResultOverride}
+         WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM test_case_dataset WHERE id = #{id}
+    </delete>
+
+    <select id="countExecutions" resultType="int">
+        SELECT COUNT(*) FROM test_execution WHERE dataset_id = #{datasetId}
+    </select>
+</mapper>

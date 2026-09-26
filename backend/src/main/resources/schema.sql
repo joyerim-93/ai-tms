@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_folder_project ON test_case_folder (project_id, p
 -- ─────────────────────────────── ② 테스트케이스 (프로젝트 소유. '중앙관리'는 검색/추천/가져오기 레이어에서)
 CREATE TABLE IF NOT EXISTS test_case (
     id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
-    tc_code               VARCHAR(30)  NOT NULL UNIQUE,        -- 예: TC-00001
+    tc_code               VARCHAR(30)  NOT NULL UNIQUE,        -- 화면 표기 'Key' (예: TC-101, 전역 순번)
     project_id            BIGINT       NOT NULL REFERENCES project (id),
     folder_id             BIGINT       REFERENCES test_case_folder (id) ON DELETE SET NULL,  -- NULL = 미분류
     title                 VARCHAR(300) NOT NULL,
@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS test_case (
     priority              VARCHAR(10)  NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
     status                VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DEPRECATED')),
     tags                  VARCHAR(500),                        -- 콤마 구분
+    is_parameterized      BOOLEAN      NOT NULL DEFAULT FALSE, -- 데이터 기반 반복 실행(데이터셋 행마다 실행)
     -- 추천/검토 (AI 추천 결과는 DRAFT로 들어와 검토 후 APPROVED)
     source                VARCHAR(10)  NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'RULE', 'RAG', 'LLM')),
     technique             VARCHAR(30)
@@ -110,6 +111,18 @@ CREATE TABLE IF NOT EXISTS test_case (
 );
 CREATE INDEX IF NOT EXISTS idx_test_case_module ON test_case (module);
 CREATE INDEX IF NOT EXISTS idx_test_case_project_folder ON test_case (project_id, folder_id);
+
+-- 파라미터화 TC 데이터셋 (docs/08) — 단계 텍스트의 {변수}를 행마다 param_values로 치환해 반복 실행
+CREATE TABLE IF NOT EXISTS test_case_dataset (
+    id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+    test_case_id             BIGINT        NOT NULL REFERENCES test_case (id) ON DELETE CASCADE,
+    row_label                VARCHAR(200)  NOT NULL,          -- 예: 최소금액 미만(9,999원)
+    param_values             VARCHAR(2000) NOT NULL,          -- JSON {"amount": 9999}
+    expected_result_override VARCHAR(2000),                   -- 이 행 전용 기대결과 → {expected} 치환값
+    sort_order               INT           NOT NULL DEFAULT 0,
+    created_at               TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_dataset_tc ON test_case_dataset (test_case_id, sort_order);
 
 -- TC ↔ 원자 요구사항 다대다 (Zephyr Traceability, docs/07-schema-add-requirement-link.sql)
 -- 같은 프로젝트의 요구사항만 연결 (서비스에서 검증)
@@ -150,6 +163,7 @@ CREATE TABLE IF NOT EXISTS test_execution (
     id           BIGINT AUTO_INCREMENT PRIMARY KEY,
     cycle_id     BIGINT       NOT NULL REFERENCES test_cycle (id) ON DELETE CASCADE,
     test_case_id BIGINT       NOT NULL REFERENCES test_case (id),
+    dataset_id   BIGINT       REFERENCES test_case_dataset (id), -- 파라미터화 TC면 데이터셋 행별 실행, NULL이면 TC 단위
     tc_version   INT          NOT NULL,               -- 등록 시점 TC 버전 스냅샷
     assignee_id  BIGINT       REFERENCES users (id),
     result       VARCHAR(10)  NOT NULL DEFAULT 'NOT_RUN' CHECK (result IN ('PASS', 'FAIL', 'BLOCKED', 'NOT_RUN')),
@@ -157,7 +171,7 @@ CREATE TABLE IF NOT EXISTS test_execution (
     executed_at  TIMESTAMP,                           -- 마지막 수행 시각
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (cycle_id, test_case_id)
+    UNIQUE (cycle_id, test_case_id, dataset_id)       -- dataset_id NULL 중복은 등록 SQL(NOT EXISTS)에서 방지
 );
 CREATE INDEX IF NOT EXISTS idx_execution_assignee ON test_execution (assignee_id, result);
 

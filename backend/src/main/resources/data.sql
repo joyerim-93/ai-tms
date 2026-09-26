@@ -66,23 +66,35 @@ INSERT IGNORE INTO test_case_folder (id, project_id, parent_folder_id, name, sor
     (6, 2, NULL, '우대금리 이벤트', 1);
 
 -- 6. 테스트케이스 (모두 프로젝트 1 소유, 규칙기반 RULE / RAG / LLM 출처 혼합, author NULL = 시스템·AI 생성)
---    folder: 3 가입금액 검증(1~4, 10) / 4 거치기간별 금리(5~7, 11) / 5 우대금리(8, 9)
+--    folder: 3 가입금액 검증(1~4, 10, 14) / 4 거치기간별 금리(5~7, 11) / 5 우대금리(8, 9)
+--    TC 1~4(개별 경계값)는 파라미터화 TC-114(데이터셋 4행)로 대체 → DEPRECATED (이력·결함 연결 보존)
 INSERT IGNORE INTO test_case
     (id, tc_code, project_id, folder_id, title, module, priority, status, source, technique, review_status, origin_project_id) VALUES
-    (1,  'TC-00001', 1, 3, '가입금액 경계값 - 최소금액 미만(9,999원)',   '가입금액', 'HIGH',   'ACTIVE', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
-    (2,  'TC-00002', 1, 3, '가입금액 경계값 - 최소금액(10,000원)',       '가입금액', 'HIGH',   'ACTIVE', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
-    (3,  'TC-00003', 1, 3, '가입금액 경계값 - 최대금액(3,000,000원)',    '가입금액', 'HIGH',   'ACTIVE', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
-    (4,  'TC-00004', 1, 3, '가입금액 경계값 - 최대금액 초과(3,000,001원)', '가입금액', 'HIGH',   'ACTIVE', 'RULE', 'BOUNDARY_VALUE',        'DRAFT',    NULL),
-    (5,  'TC-00005', 1, 4, '거치기간 1년 선택 시 금리 2.5% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'APPROVED', NULL),
-    (6,  'TC-00006', 1, 4, '거치기간 2년 선택 시 금리 3.2% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'APPROVED', NULL),
-    (7,  'TC-00007', 1, 4, '거치기간 3년 선택 시 금리 3.9% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'DRAFT',    NULL),
-    (8,  'TC-00008', 1, 5, '[과거사례 참고] 기존 고객 우대금리 적용 여부 확인', '우대금리', 'MEDIUM', 'ACTIVE', 'RAG', 'EQUIVALENCE_PARTITION', 'DRAFT', 2),
-    (9,  'TC-00009', 1, 5, '[과거사례 참고] 신규 고객은 우대금리 미적용',  '우대금리', 'MEDIUM', 'ACTIVE', 'RAG',  'EQUIVALENCE_PARTITION', 'DRAFT',    2),
-    (10, 'TC-00010', 1, 3, '[AI 생성] 최대 가입금액 + 최장 거치기간 동시 적용 시 총 이자 계산 정합성', '이자계산', 'MEDIUM', 'ACTIVE', 'LLM', 'EXPLORATORY', 'DRAFT', NULL),
-    (11, 'TC-00011', 1, 4, '[AI 생성] 금리 구간 경계에서 소수점 자릿수 처리 확인', '이자계산', 'LOW', 'ACTIVE', 'LLM', 'EXPLORATORY', 'REJECTED', NULL),
+    (1,  'TC-101', 1, 3, '가입금액 경계값 - 최소금액 미만(9,999원)',   '가입금액', 'HIGH',   'DEPRECATED', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
+    (2,  'TC-102', 1, 3, '가입금액 경계값 - 최소금액(10,000원)',       '가입금액', 'HIGH',   'DEPRECATED', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
+    (3,  'TC-103', 1, 3, '가입금액 경계값 - 최대금액(3,000,000원)',    '가입금액', 'HIGH',   'DEPRECATED', 'RULE', 'BOUNDARY_VALUE',        'APPROVED', NULL),
+    (4,  'TC-104', 1, 3, '가입금액 경계값 - 최대금액 초과(3,000,001원)', '가입금액', 'HIGH',   'DEPRECATED', 'RULE', 'BOUNDARY_VALUE',        'DRAFT',    NULL),
+    (5,  'TC-105', 1, 4, '거치기간 1년 선택 시 금리 2.5% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'APPROVED', NULL),
+    (6,  'TC-106', 1, 4, '거치기간 2년 선택 시 금리 3.2% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'APPROVED', NULL),
+    (7,  'TC-107', 1, 4, '거치기간 3년 선택 시 금리 3.9% 적용',          '금리',     'MEDIUM', 'ACTIVE', 'RULE', 'DECISION_TABLE',        'DRAFT',    NULL),
+    (8,  'TC-108', 1, 5, '[과거사례 참고] 기존 고객 우대금리 적용 여부 확인', '우대금리', 'MEDIUM', 'ACTIVE', 'RAG', 'EQUIVALENCE_PARTITION', 'DRAFT', 2),
+    (9,  'TC-109', 1, 5, '[과거사례 참고] 신규 고객은 우대금리 미적용',  '우대금리', 'MEDIUM', 'ACTIVE', 'RAG',  'EQUIVALENCE_PARTITION', 'DRAFT',    2),
+    (10, 'TC-110', 1, 3, '[AI 생성] 최대 가입금액 + 최장 거치기간 동시 적용 시 총 이자 계산 정합성', '이자계산', 'MEDIUM', 'ACTIVE', 'LLM', 'EXPLORATORY', 'DRAFT', NULL),
+    (11, 'TC-111', 1, 4, '[AI 생성] 금리 구간 경계에서 소수점 자릿수 처리 확인', '이자계산', 'LOW', 'ACTIVE', 'LLM', 'EXPLORATORY', 'REJECTED', NULL),
     -- 과거 프로젝트(2) 승인 TC — '다른 프로젝트에서 가져오기'·RAG 검색 대상
-    (12, 'TC-00012', 2, 6, '갈아타기 기존 고객 우대금리 0.2%p 가산',        '우대금리', 'HIGH',   'ACTIVE', 'MANUAL', 'EQUIVALENCE_PARTITION', 'APPROVED', NULL),
-    (13, 'TC-00013', 2, 6, '이벤트 시작일 기준 30일 초과 신청 시 우대 미적용', '우대금리', 'MEDIUM', 'ACTIVE', 'MANUAL', 'BOUNDARY_VALUE',        'APPROVED', NULL);
+    (12, 'TC-112', 2, 6, '갈아타기 기존 고객 우대금리 0.2%p 가산',        '우대금리', 'HIGH',   'ACTIVE', 'MANUAL', 'EQUIVALENCE_PARTITION', 'APPROVED', NULL),
+    (13, 'TC-113', 2, 6, '이벤트 시작일 기준 30일 초과 신청 시 우대 미적용', '우대금리', 'MEDIUM', 'ACTIVE', 'MANUAL', 'BOUNDARY_VALUE',        'APPROVED', NULL);
+
+-- 6-2. 파라미터화 TC (docs/08) — 단계 텍스트의 {amount}, {expected}를 데이터셋 행 값으로 치환
+INSERT IGNORE INTO test_case
+    (id, tc_code, project_id, folder_id, title, module, priority, status, source, technique, review_status, is_parameterized) VALUES
+    (14, 'TC-114', 1, 3, '가입금액 경계값 검증 (데이터 기반)', '가입금액', 'HIGH', 'ACTIVE', 'RULE', 'BOUNDARY_VALUE', 'APPROVED', TRUE);
+
+INSERT IGNORE INTO test_case_dataset (id, test_case_id, row_label, param_values, expected_result_override, sort_order) VALUES
+    (1, 14, '최소금액 미만(9,999원)',     '{"amount": 9999}',    '"최소 가입금액은 10,000원입니다" 오류, 가입 실패', 1),
+    (2, 14, '최소금액(10,000원)',         '{"amount": 10000}',   '가입 정상 처리', 2),
+    (3, 14, '최대금액(3,000,000원)',      '{"amount": 3000000}', '가입 정상 처리', 3),
+    (4, 14, '최대금액 초과(3,000,001원)', '{"amount": 3000001}', '"최대 가입금액은 3,000,000원입니다" 오류, 가입 실패', 4);
 
 -- 6-1. TC ↔ 원자 요구사항 다대다 링크 (docs/07). TC 10은 금액 범위 + 거치기간 두 요구사항을 함께 검증.
 --      TC 8·9(RAG, 프로젝트 1)는 다른 프로젝트(2) 요구사항이라 링크하지 않음 — 참고 출처는 origin_project_id로 표시
@@ -91,7 +103,8 @@ INSERT IGNORE INTO test_case_requirement_link (id, test_case_id, atomic_requirem
     (5, 5, 3), (6, 6, 3), (7, 7, 3),
     (8, 10, 1), (9, 10, 3),
     (10, 11, 2),
-    (11, 12, 4), (12, 13, 4);
+    (11, 12, 4), (12, 13, 4),
+    (13, 14, 1);
 
 -- 원본의 steps 텍스트("1. ...\n2. ...")를 단계 행으로 분리, 기대결과는 마지막 단계에 기재
 INSERT IGNORE INTO test_step (id, test_case_id, step_no, action, expected_result) VALUES
@@ -125,7 +138,9 @@ INSERT IGNORE INTO test_step (id, test_case_id, step_no, action, expected_result
     (28, 12, 2, '자유적금 갈아타기 신청', NULL),
     (29, 12, 3, '적용 금리 확인', '기본 금리 + 0.2%p 가산 금리 표시'),
     (30, 13, 1, '이벤트 시작일 + 31일 시점으로 시스템 일자 설정', NULL),
-    (31, 13, 2, '갈아타기 신청', '"신청 기간이 지났습니다" 안내, 우대금리 미적용');
+    (31, 13, 2, '갈아타기 신청', '"신청 기간이 지났습니다" 안내, 우대금리 미적용'),
+    (32, 14, 1, '가입금액에 {amount}원 입력', NULL),
+    (33, 14, 2, '가입 신청', '{expected}');
 
 -- 7. 테스트 차수 (원본 test_round)
 INSERT IGNORE INTO test_cycle (id, project_id, cycle_no, name, start_date, end_date, status) VALUES
@@ -144,13 +159,24 @@ INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, tc_version, assig
     (8, 1, 8, 1, 1, 'NOT_RUN', NULL, NULL),
     (9, 1, 9, 1, 1, 'NOT_RUN', NULL, NULL);
 
+-- 파라미터화 TC-114: 데이터셋 행마다 개별 실행 결과 (docs/08)
+INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, dataset_id, tc_version, assignee_id, result, executed_by, executed_at) VALUES
+    (10, 1, 14, 1, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:00:00'),
+    (11, 1, 14, 2, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:05:00'),
+    (12, 1, 14, 3, 1, 1, 'FAIL', 1, TIMESTAMP '2026-09-24 10:10:00'),
+    (13, 1, 14, 4, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:15:00');
+
 INSERT IGNORE INTO test_execution_history (id, execution_id, result, comment, executed_by, executed_at) VALUES
     (1, 1, 'PASS',    NULL, 1, TIMESTAMP '2026-09-22 10:15:00'),
     (2, 2, 'PASS',    NULL, 1, TIMESTAMP '2026-09-22 10:20:00'),
     (3, 3, 'FAIL',    '3,000,000원 입력 시 가입이 거부됨. 결함 등록함', 1, TIMESTAMP '2026-09-22 11:00:00'),
     (4, 4, 'BLOCKED', '3번 케이스 결함으로 인해 후속 검증 불가', 1, TIMESTAMP '2026-09-22 11:10:00'),
     (5, 5, 'PASS',    NULL, 3, TIMESTAMP '2026-09-23 09:30:00'),
-    (6, 6, 'PASS',    NULL, 3, TIMESTAMP '2026-09-23 09:40:00');
+    (6, 6, 'PASS',    NULL, 3, TIMESTAMP '2026-09-23 09:40:00'),
+    (7, 10, 'PASS',   NULL, 1, TIMESTAMP '2026-09-24 10:00:00'),
+    (8, 11, 'PASS',   NULL, 1, TIMESTAMP '2026-09-24 10:05:00'),
+    (9, 12, 'FAIL',   '기존 결함(DF-0001)과 동일 증상 재현', 1, TIMESTAMP '2026-09-24 10:10:00'),
+    (10, 13, 'PASS',  NULL, 1, TIMESTAMP '2026-09-24 10:15:00');
 
 -- 9. 결함 (원본 severity high → MAJOR, status open → OPEN)
 INSERT IGNORE INTO defect (id, project_id, defect_code, title, description, severity, priority, status, reporter_id, assignee_id, execution_id) VALUES

@@ -20,6 +20,7 @@ public class TestCaseService {
 
     private final TestCaseMapper mapper;
     private final TestCaseFolderService folderService;
+    private final TestCaseDatasetMapper datasetMapper;
 
     /** folderId 지정 시 하위 폴더 TC까지 포함 */
     public PageResponse<TestCase> search(TestCaseSearch search) {
@@ -34,6 +35,7 @@ public class TestCaseService {
                 .orElseThrow(() -> ApiException.notFound("테스트케이스를 찾을 수 없습니다. id=" + id));
         tc.setSteps(mapper.findSteps(id));
         tc.setRequirements(mapper.findRequirements(id));
+        tc.setDatasets(datasetMapper.findByTestCase(id));
         return tc;
     }
 
@@ -72,6 +74,21 @@ public class TestCaseService {
         return get(id);
     }
 
+    /** '연결된 요구사항' 탭에서 링크만 교체 */
+    @Transactional
+    public TestCase replaceRequirements(Long id, List<Long> atomicRequirementIds) {
+        TestCase tc = get(id);
+        mapper.deleteRequirementLinks(id);
+        saveRequirementLinks(id, tc.getProjectId(), atomicRequirementIds);
+        return get(id);
+    }
+
+    /** 이 TC의 실행 이력 (모든 차수, 시간 역순) */
+    public List<TestCaseRun> runs(Long id) {
+        get(id);
+        return mapper.findRuns(id);
+    }
+
     /** AI 추천(DRAFT) TC 승인/반려. 검토자 = CurrentUser */
     @Transactional
     public TestCase review(Long id, ReviewStatus reviewStatus) {
@@ -107,6 +124,7 @@ public class TestCaseService {
             copy.setStatus(TestCaseStatus.ACTIVE);
             copy.setTags(src.getTags());
             copy.setTechnique(src.getTechnique());
+            copy.setIsParameterized(src.getIsParameterized());
             copy.setSource(TcSource.MANUAL);
             copy.setReviewStatus(ReviewStatus.APPROVED);
             copy.setOriginProjectId(src.getProjectId());
@@ -119,6 +137,11 @@ public class TestCaseService {
             if (!steps.isEmpty()) {
                 mapper.insertSteps(steps);
             }
+            src.getDatasets().forEach(d -> {
+                d.setId(null);
+                d.setTestCaseId(copy.getId());
+                datasetMapper.insert(d);
+            });
             imported.add(get(copy.getId()));
         }
         return imported;
@@ -143,6 +166,7 @@ public class TestCaseService {
         tc.setStatus(req.status() != null ? req.status() : TestCaseStatus.ACTIVE);
         tc.setTags(blankToNull(req.tags()));
         tc.setTechnique(req.technique());
+        tc.setIsParameterized(Boolean.TRUE.equals(req.isParameterized()));
         return tc;
     }
 

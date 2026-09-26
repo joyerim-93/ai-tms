@@ -36,11 +36,15 @@ public class TestExecutionService {
         return mapper.findHistory(id);
     }
 
-    /** @return 실제 등록 건수 (이미 등록된 TC·폐기 TC는 제외) */
+    /**
+     * @return 생성된 실행 항목 수 — 파라미터화 TC는 데이터셋 행마다 1건
+     *         (이미 등록된 항목·미승인·폐기·다른 프로젝트 TC는 제외)
+     */
     @Transactional
     public int add(Long cycleId, AddExecutionsRequest req) {
         cycleService.getOpen(cycleId);
-        return mapper.insertAll(cycleId, req.testCaseIds(), req.assigneeId());
+        return mapper.insertAll(cycleId, req.testCaseIds(), req.assigneeId())
+                + mapper.insertDatasetRows(cycleId, req.testCaseIds(), req.assigneeId());
     }
 
     @Transactional

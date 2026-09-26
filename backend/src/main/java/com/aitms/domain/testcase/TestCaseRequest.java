@@ -24,6 +24,7 @@ public record TestCaseRequest(
         TestCaseStatus status,
         @Size(max = 500) String tags,
         TestTechnique technique,
+        Boolean isParameterized,           // null = false
         List<Long> atomicRequirementIds,   // 검증하는 원자 요구사항 (다대다, 같은 프로젝트만) — 수정 시 전체 교체
         @Valid List<StepRequest> steps) {
 
