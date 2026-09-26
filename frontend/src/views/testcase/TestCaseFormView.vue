@@ -8,6 +8,7 @@ import { requirementApi } from '@/api/requirements'
 import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
+import { extractVariables, braced } from '@/utils/params'
 import RequirementLinkPicker from './RequirementLinkPicker.vue'
 
 const route = useRoute()
@@ -24,6 +25,7 @@ const form = reactive({
   status: 'ACTIVE',
   tags: '',
   technique: '',
+  isParameterized: false,
   atomicRequirementIds: [], // 검증하는 원자 요구사항 (다대다)
   precondition: '',
   steps: [{ action: '', expectedResult: '' }],
@@ -52,6 +54,7 @@ onMounted(async () => {
       status: tc.status,
       tags: tc.tags ?? '',
       technique: tc.technique ?? '',
+      isParameterized: !!tc.isParameterized,
       atomicRequirementIds: tc.requirements.map((r) => r.atomicRequirementId),
       precondition: tc.precondition ?? '',
       steps: tc.steps.map(({ action, expectedResult }) => ({ action, expectedResult: expectedResult ?? '' })),
@@ -71,6 +74,8 @@ async function loadProjectOptions(projectId) {
   requirementOptions.value = atomics
   modules.value = mods
 }
+
+const variables = computed(() => extractVariables(form.steps))
 
 const addStep = () => form.steps.push({ action: '', expectedResult: '' })
 const removeStep = (i) => form.steps.splice(i, 1)
@@ -94,7 +99,8 @@ async function save() {
       steps,
     }
     const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
-    router.push(`/test-cases/${saved.id}`)
+    // 파라미터화 TC를 새로 켰으면 바로 데이터셋 탭으로
+    router.push({ path: `/test-cases/${saved.id}`, query: saved.isParameterized && !saved.datasets.length ? { tab: 'dataset' } : {} })
   } catch (e) {
     error.value = e.message
   } finally {
@@ -162,6 +168,18 @@ async function save() {
           <input v-model="form.tags" class="input" maxlength="500" placeholder="콤마로 구분 (예: smoke,login)" />
         </div>
         <div class="span-4">
+          <label class="param-toggle">
+            <input v-model="form.isParameterized" type="checkbox" />
+            <span>
+              <strong>파라미터화 (데이터 기반 반복 실행)</strong>
+              <span class="muted">— 단계에 <code>{변수}</code>를 쓰고, 저장 후 ‘데이터셋’ 탭에서 행마다 값을 넣습니다. <code>{expected}</code>는 행별 기대결과.</span>
+            </span>
+          </label>
+          <p v-if="form.isParameterized && variables.length" class="muted small vars">
+            단계에서 찾은 변수: <code v-for="v in variables" :key="v">{{ braced(v) }}</code>
+          </p>
+        </div>
+        <div class="span-4">
           <label class="label">사전조건</label>
           <textarea v-model="form.precondition" class="textarea" maxlength="2000" />
         </div>
@@ -213,6 +231,32 @@ async function save() {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
+}
+.param-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.param-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.param-toggle code,
+.vars code {
+  margin-right: var(--space-1);
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.vars {
+  margin: var(--space-2) 0 0;
+}
+.small {
+  font-size: var(--font-size-xs);
 }
 .count {
   margin-left: var(--space-2);

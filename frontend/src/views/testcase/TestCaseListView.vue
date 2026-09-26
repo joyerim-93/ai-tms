@@ -5,10 +5,10 @@ import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
 import { folderApi } from '@/api/projects'
 import { useProjectStore } from '@/stores/projectStore'
-import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, formatDateTime } from '@/constants/labels'
+import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import FolderTree from '@/components/FolderTree.vue'
-import PriorityChip from '@/components/PriorityChip.vue'
+import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
 import ImportTestCaseModal from './ImportTestCaseModal.vue'
@@ -207,30 +207,32 @@ watch(folderKey, () => load())
         <table class="table">
           <thead>
             <tr>
-              <th style="width: 100px">코드</th>
+              <th style="width: 84px">Key</th>
               <th>제목</th>
-              <th v-if="folderKey === 'all'" style="width: 120px">폴더</th>
-              <th style="width: 70px">우선순위</th>
+              <th style="width: 120px">폴더</th>
+              <th style="width: 96px">기법</th>
               <th style="width: 76px">출처</th>
-              <th style="width: 76px">검토</th>
-              <th style="width: 64px" title="검증하는 요구사항 수">요구사항</th>
-              <th style="width: 120px">수정일</th>
+              <th style="width: 76px">상태</th>
+              <th style="width: 92px">데이터셋</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="tc in result.items" :key="tc.id" class="clickable" @click="router.push(`/test-cases/${tc.id}`)">
-              <td class="mono">{{ tc.tcCode }}</td>
+              <td><TestCaseKeyBadge :code="tc.tcCode" /></td>
               <td>
                 {{ tc.title }}
+                <span v-if="tc.isParameterized" class="chip chip-accent" :title="`데이터셋 ${tc.datasetCount}행`">🔢 {{ tc.datasetCount }}</span>
                 <span v-if="tc.status === 'DEPRECATED'" class="chip chip-muted">폐기</span>
                 <span v-if="tc.originProjectName" class="chip chip-muted" :title="`원본: ${tc.originProjectName}`">가져옴</span>
               </td>
-              <td v-if="folderKey === 'all'" class="small">{{ tc.folderName ?? '미분류' }}</td>
-              <td><PriorityChip :priority="tc.priority" /></td>
+              <td class="small">{{ tc.folderName ?? '미분류' }}</td>
+              <td><span v-if="tc.technique" class="chip chip-muted">{{ TECHNIQUE[tc.technique] }}</span></td>
               <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
               <td><LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" /></td>
-              <td :class="tc.requirementCount ? '' : 'muted'">{{ tc.requirementCount }}</td>
-              <td class="muted small">{{ formatDateTime(tc.updatedAt) }}</td>
+              <td class="small">
+                <span v-if="tc.isParameterized" class="nowrap">Data-Driven</span>
+                <span v-else class="muted">-</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -373,6 +375,9 @@ watch(folderKey, () => load())
 }
 .small {
   font-size: var(--font-size-xs);
+}
+.nowrap {
+  white-space: nowrap;
 }
 .pagination {
   display: flex;
