@@ -215,6 +215,7 @@ onMounted(async () => {
   <TcPickerModal
     v-if="showPicker"
     :cycle-id="cycleId"
+    :project-id="cycle.projectId"
     :members="members"
     :registered-tc-ids="registeredTcIds"
     @close="showPicker = false"

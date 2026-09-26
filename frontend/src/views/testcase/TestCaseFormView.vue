@@ -1,15 +1,21 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
+import { folderApi } from '@/api/projects'
+import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
+import { flattenFolders, indentLabel } from '@/utils/folders'
 
 const route = useRoute()
 const router = useRouter()
 const id = route.params.id
 const isEdit = computed(() => !!id)
+const { currentProjectId, currentProject } = storeToRefs(useProjectStore())
 
 const form = reactive({
+  folderId: route.query.folder ? Number(route.query.folder) : '', // 목록에서 선택 중이던 폴더가 기본
   title: '',
   module: '',
   priority: 'MEDIUM',
@@ -21,15 +27,23 @@ const form = reactive({
   steps: [{ action: '', expectedResult: '' }],
 })
 const modules = ref([])
+const folders = ref([])        // 평면 [{ id, name, depth, path }]
+const tcProject = ref(null)    // 수정 시 TC 소유 프로젝트 { id, name }
 const saving = ref(false)
 const error = ref('')
 
 onMounted(async () => {
   modules.value = await testCaseApi.modules().catch(() => [])
-  if (!isEdit.value) return
   try {
+    if (!isEdit.value) {
+      if (currentProjectId.value) folders.value = flattenFolders((await folderApi.tree(currentProjectId.value)).roots)
+      return
+    }
     const tc = await testCaseApi.get(id)
+    tcProject.value = { id: tc.projectId, name: tc.projectName }
+    folders.value = flattenFolders((await folderApi.tree(tc.projectId)).roots) // 폴더 이동은 같은 프로젝트 안에서만
     Object.assign(form, {
+      folderId: tc.folderId ?? '',
       title: tc.title,
       module: tc.module ?? '',
       priority: tc.priority,
@@ -59,7 +73,13 @@ async function save() {
   const steps = form.steps.filter((s) => s.action.trim() || s.expectedResult.trim())
   saving.value = true
   try {
-    const body = { ...form, technique: form.technique || null, steps }
+    const body = {
+      ...form,
+      projectId: currentProjectId.value, // 등록 시에만 사용 (수정 시 서버에서 무시)
+      folderId: form.folderId || null,
+      technique: form.technique || null,
+      steps,
+    }
     const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
     router.push(`/test-cases/${saved.id}`)
   } catch (e) {
@@ -83,9 +103,20 @@ async function save() {
     <section class="card section">
       <div class="card-title">기본 정보</div>
       <div class="grid">
+        <div class="span-2">
+          <label class="label">프로젝트</label>
+          <div class="readonly">{{ (isEdit ? tcProject?.name : currentProject?.name) ?? '-' }}</div>
+        </div>
+        <div class="span-2">
+          <label class="label">폴더</label>
+          <select v-model="form.folderId" class="select">
+            <option value="">미분류</option>
+            <option v-for="f in folders" :key="f.id" :value="f.id">{{ indentLabel(f) }}</option>
+          </select>
+        </div>
         <div class="span-4">
           <label class="label required">제목</label>
-          <input v-model="form.title" class="input" maxlength="200" required />
+          <input v-model="form.title" class="input" maxlength="300" required />
         </div>
         <div class="span-2">
           <label class="label">모듈</label>
@@ -164,6 +195,15 @@ async function save() {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
+}
+.readonly {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
 }
 .span-2 {
   grid-column: span 2;

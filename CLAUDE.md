@@ -29,7 +29,7 @@ ai-tms/
 │     │  └─ domain/              도메인별 패키지: VO/DTO · XxxMapper(@Mapper) · XxxService · XxxController
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
-│     │     ├─ testcase/         ✅ 테스트케이스 저장소 (+ 추천 출처/검토)
+│     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
 │     │     ├─ recommend/        RecommendationService 인터페이스 + Noop 구현, RuleCatalog(규칙 카탈로그)
 │     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
 │     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
@@ -48,15 +48,17 @@ ai-tms/
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
       ├─ components/             AppHeader(메뉴 + 우측 ProjectSelector), ProjectSelector(전환 전용 드롭다운), StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
-      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List·Detail·Form, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
+      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀)
+      ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·Form + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
 
 ## 도메인 모델 (승인됨)
 - **users**(login_id, name, email, role `DEV|BIZ|QA|ADMIN`, password nullable)
 - **project**, **project_member**(project_id, user_id, project_role)
-- **test_case**(중앙 저장소, 프로젝트 비종속: tc_code, title, module, precondition, priority, status `ACTIVE|DEPRECATED`, tags, author_id(NULL=시스템/AI), version,
+- **test_case_folder**(project_id, parent_folder_id 자기참조=중첩, name, sort_order) — 트리는 서비스에서 parent_folder_id로 조립
+- **test_case**(**프로젝트 소유** project_id NOT NULL, folder_id NULL=미분류, tc_code, title, module, precondition, priority, status `ACTIVE|DEPRECATED`, tags, author_id(NULL=시스템/AI), version,
   source `MANUAL|RULE|RAG|LLM`, technique `BOUNDARY_VALUE|EQUIVALENCE_PARTITION|DECISION_TABLE|EXPLORATORY`, review_status `DRAFT|APPROVED|REJECTED`, atomic_requirement_id, origin_project_id(RAG 원본), reviewed_by/at)
 - **test_step**(test_case_id, step_no, action, expected_result) — 단계는 행 단위 관리
 - **requirement**(project_id, req_code `REQ-001`, title, description=원문, source `MANUAL|PMS`, priority) — AI 추천 입력
@@ -140,11 +142,22 @@ ai-tms/
 | GET / POST | `/api/defects/{id}/comments` | 코멘트·상태이력 타임라인 / 코멘트 추가 |
 | GET | `/api/dashboard?projectId` | 대시보드 KPI + 내 미수행 TC·내 담당 결함 상위 10건 |
 
+| GET | `/api/test-cases?projectId&excludeProjectId&folderId&unfiled&...` | folderId는 하위 폴더 포함, unfiled=미분류만, projectId 없으면 전체(가져오기 검색) |
+| POST | `/api/test-cases/import` `{projectId, testCaseIds, folderId}` | 다른 프로젝트 APPROVED·ACTIVE TC를 새 row로 복제 |
+| GET / POST | `/api/projects/{id}/folders` `{name, parentFolderId}` | 폴더 트리(roots/totalCount/unfiledCount) / 생성(형제 중 마지막, 같은 이름 409) |
+| POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
 | PATCH | `/api/test-cases/{id}/review` `{reviewStatus}` | AI 추천 TC 승인/반려 (검토자=CurrentUser) |
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 |
 | POST | `/api/requirements/{id}/recommend` | AI 추천 트리거 → `TcRecommendation[]` (현재 Noop=빈 배열) |
 | GET | `/api/rule-catalog` | 규칙 카탈로그 |
+
+### 프로젝트 소유 · 중앙관리 규칙 (v4)
+- TC는 project_id로 각 프로젝트가 **소유**(Zephyr 구조). 같은 row를 여러 프로젝트가 공유하는 N:N 공유는 **하지 않음**.
+- '중앙관리'는 검색/추천 레이어에서: ① AI 추천(RAG)은 project_id 제한 없이 **전체 프로젝트의 APPROVED TC**를 검색 대상으로 ② '다른 프로젝트에서 가져오기' = 새 row로 복제 + `origin_project_id`=원본 프로젝트(요구사항 연결은 복사 안 함, 복제본은 MANUAL·APPROVED).
+- 폴더는 같은 프로젝트 안에서만(교차 프로젝트 폴더 지정 400). TC 수정 시 프로젝트 이동 불가, 폴더 이동은 가능.
+- 차수에는 **같은 프로젝트의** ACTIVE·APPROVED TC만 등록.
+- 폴더 선택 상태는 URL `?folder=all|unfiled|<id>`로 유지(상세→목록 복귀 시 같은 폴더).
 
 ### AI 추천/검토 규칙
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
@@ -194,6 +207,7 @@ npm run build
 - ✅ 골격 / 스키마 / ② TC 저장소 / ③ 테스트수행 / ④ 결함 / ① 대시보드
 - ✅ docs/00-SKELETON.md 병합 (요구사항/원자요구사항/규칙카탈로그, TC 출처·기법·검토) — 단, 문서의 JPA·test_round 명칭·Pinia·문자열 담당자는 채택하지 않음(MyBatis, test_cycle, users FK 유지)
 - ✅ v4-1 프로젝트 전역화 (Pinia projectStore + 헤더 ProjectSelector, pill ProjectTabs 제거)
-- ⏳ v4 남은 단계 (docs/06-DESIGN-v4.md): 2) 테스트케이스 폴더 트리 + 프로젝트 등록 → 3) TC-요구사항 N:N(test_case_requirement_link) → 4) 나머지 화면 필터링
+- ✅ v4-2 TC 프로젝트 소유 + 폴더 트리 + 프로젝트 등록 + 다른 프로젝트에서 가져오기
+- ⏳ v4 남은 단계 (docs/06-DESIGN-v4.md): 3) TC-요구사항 N:N(test_case_requirement_link) → 4) 나머지 화면 필터링
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), 요구사항 관리 + AI 추천(Claude API, RecommendationService 구현), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

@@ -1,33 +1,73 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
-import { PRIORITY, TC_STATUS, TC_SOURCE, REVIEW_STATUS, formatDateTime } from '@/constants/labels'
+import { folderApi } from '@/api/projects'
+import { useProjectStore } from '@/stores/projectStore'
+import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, formatDateTime } from '@/constants/labels'
+import { flattenFolders, indentLabel } from '@/utils/folders'
+import FolderTree from '@/components/FolderTree.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
+import ImportTestCaseModal from './ImportTestCaseModal.vue'
 
-const router = useRouter()
+// 좌: 폴더 트리 / 우: 선택 폴더(하위 포함)의 TC 목록. 선택 상태는 ?folder= (all | unfiled | id) 로 유지
 const route = useRoute()
+const router = useRouter()
+const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
-const DEFAULT_FILTER = { keyword: '', module: '', priority: '', status: 'ACTIVE', source: '', reviewStatus: '' }
+const tree = ref({ roots: [], totalCount: 0, unfiledCount: 0 })
+const flatFolders = computed(() => flattenFolders(tree.value.roots))
+
+const folderKey = computed(() => {
+  const q = route.query.folder
+  if (!q || q === 'all') return 'all'
+  return q === 'unfiled' ? 'unfiled' : Number(q)
+})
+const selectedFolderId = computed(() => (typeof folderKey.value === 'number' ? folderKey.value : null))
+const folderLabel = computed(() => {
+  if (folderKey.value === 'all') return '전체 테스트케이스'
+  if (folderKey.value === 'unfiled') return '미분류'
+  return flatFolders.value.find((f) => f.id === folderKey.value)?.path ?? '폴더'
+})
+
+const DEFAULT_FILTER = { keyword: '', status: 'ACTIVE', source: '', reviewStatus: '' }
 // 요구사항 탭의 'TC n건' 링크로 진입 시 ?atomicRequirementId= 필터
 const filter = reactive({ ...DEFAULT_FILTER, atomicRequirementId: route.query.atomicRequirementId ?? '' })
 const page = ref(1)
 const size = 20
 const result = ref({ items: [], total: 0 })
-const modules = ref([])
 const loading = ref(false)
 const error = ref('')
-
+const message = ref('')
 const totalPages = computed(() => Math.max(1, Math.ceil(result.value.total / size)))
 
+// 폴더 추가 폼
+const showFolderForm = ref(false)
+const folderForm = reactive({ name: '', parentFolderId: '' })
+const showImport = ref(false)
+
+async function loadTree() {
+  if (!projectId.value) return
+  tree.value = await folderApi.tree(projectId.value)
+}
+
 async function load(p = 1) {
+  if (!projectId.value) return
   page.value = p
   loading.value = true
   error.value = ''
   try {
-    result.value = await testCaseApi.search({ ...filter, page: p, size })
+    result.value = await testCaseApi.search({
+      ...filter,
+      projectId: projectId.value,
+      folderId: selectedFolderId.value ?? '',
+      unfiled: folderKey.value === 'unfiled' ? true : '',
+      page: p,
+      size,
+    })
   } catch (e) {
     error.value = e.message
   } finally {
@@ -35,132 +75,302 @@ async function load(p = 1) {
   }
 }
 
+function selectFolder(key) {
+  router.replace({ query: { ...route.query, folder: key === 'all' ? undefined : key } })
+}
+
 function reset() {
   Object.assign(filter, { ...DEFAULT_FILTER, atomicRequirementId: '' })
   load()
 }
 
-onMounted(async () => {
-  load()
-  modules.value = await testCaseApi.modules().catch(() => [])
-})
+function openFolderForm() {
+  folderForm.name = ''
+  folderForm.parentFolderId = selectedFolderId.value ?? '' // 선택된 폴더 아래에 추가하는 것이 기본
+  showFolderForm.value = true
+}
+
+async function createFolder() {
+  error.value = ''
+  try {
+    const created = await folderApi.create(projectId.value, {
+      name: folderForm.name,
+      parentFolderId: folderForm.parentFolderId || null,
+    })
+    showFolderForm.value = false
+    await loadTree()
+    selectFolder(created.id)
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+async function onImported(count) {
+  const target = selectedFolderId.value ? folderLabel.value : '미분류'
+  showImport.value = false
+  message.value = `${count}건을 '${target}'에 가져왔습니다.`
+  await Promise.all([loadTree(), load(page.value)])
+}
+
+// 프로젝트 전환: 트리 교체 + 폴더 선택 초기화
+watch(
+  projectId,
+  async (next, prev) => {
+    if (prev && route.query.folder) selectFolder('all')
+    await Promise.all([loadTree().catch((e) => (error.value = e.message)), load()])
+  },
+  { immediate: true },
+)
+watch(folderKey, () => load())
 </script>
 
 <template>
   <RepoTabs />
-  <div class="page-actions">
-    <button class="btn btn-primary" @click="router.push('/test-cases/new')">+ 새 테스트케이스</button>
+
+  <div class="split">
+    <!-- 좌측: 폴더 트리 -->
+    <aside class="card folder-panel">
+      <div class="panel-title">폴더</div>
+      <div class="node-root" :class="{ selected: folderKey === 'all' }" @click="selectFolder('all')">
+        <span>🗂 전체 테스트케이스</span><span class="count">{{ tree.totalCount }}</span>
+      </div>
+      <FolderTree :folders="tree.roots" :selected-id="selectedFolderId" @select="selectFolder" />
+      <div class="node-root" :class="{ selected: folderKey === 'unfiled' }" @click="selectFolder('unfiled')">
+        <span>📥 미분류</span><span class="count">{{ tree.unfiledCount }}</span>
+      </div>
+
+      <form v-if="showFolderForm" class="folder-form" @submit.prevent="createFolder">
+        <input v-model="folderForm.name" class="input" maxlength="200" placeholder="폴더 이름" required autofocus />
+        <select v-model="folderForm.parentFolderId" class="select">
+          <option value="">최상위</option>
+          <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ indentLabel(f) }}</option>
+        </select>
+        <div class="folder-form-actions">
+          <button type="button" class="btn btn-sm" @click="showFolderForm = false">취소</button>
+          <button class="btn btn-sm btn-primary">추가</button>
+        </div>
+      </form>
+      <button v-else type="button" class="add-folder" :disabled="!projectId" @click="openFolderForm">+ 폴더 추가</button>
+    </aside>
+
+    <!-- 우측: 테스트케이스 목록 -->
+    <section class="list-area">
+      <div class="list-top">
+        <h3 class="folder-title">{{ folderLabel }}</h3>
+        <div class="actions">
+          <button class="btn" :disabled="!projectId" @click="showImport = true">다른 프로젝트에서 가져오기</button>
+          <button
+            class="btn btn-primary"
+            :disabled="!projectId"
+            @click="router.push({ path: '/test-cases/new', query: selectedFolderId ? { folder: selectedFolderId } : {} })"
+          >
+            + 테스트케이스 추가
+          </button>
+        </div>
+      </div>
+      <p v-if="message" class="message">{{ message }}</p>
+
+      <form class="card filters" @submit.prevent="load()">
+        <input v-model="filter.keyword" class="input keyword" placeholder="코드 / 제목 / 태그 검색" />
+        <select v-model="filter.status" class="select">
+          <option value="">전체 상태</option>
+          <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
+        </select>
+        <select v-model="filter.source" class="select">
+          <option value="">전체 출처</option>
+          <option v-for="(s, key) in TC_SOURCE" :key="key" :value="key">{{ s.label }}</option>
+        </select>
+        <select v-model="filter.reviewStatus" class="select">
+          <option value="">전체 검토</option>
+          <option v-for="(s, key) in REVIEW_STATUS" :key="key" :value="key">{{ s.label }}</option>
+        </select>
+        <button type="submit" class="btn btn-primary">검색</button>
+        <button type="button" class="btn" @click="reset">초기화</button>
+      </form>
+
+      <section class="card">
+        <div class="list-header">
+          <span>
+            총 <strong>{{ result.total }}</strong>건
+            <button
+              v-if="filter.atomicRequirementId"
+              class="chip chip-accent filter-chip"
+              @click="filter.atomicRequirementId = ''; load()"
+            >
+              원자 요구사항 #{{ filter.atomicRequirementId }} ✕
+            </button>
+          </span>
+          <span v-if="loading" class="muted">불러오는 중…</span>
+        </div>
+        <p v-if="error" class="error-text">{{ error }}</p>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width: 100px">코드</th>
+              <th>제목</th>
+              <th v-if="folderKey === 'all'" style="width: 120px">폴더</th>
+              <th style="width: 70px">우선순위</th>
+              <th style="width: 76px">출처</th>
+              <th style="width: 76px">검토</th>
+              <th style="width: 120px">수정일</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tc in result.items" :key="tc.id" class="clickable" @click="router.push(`/test-cases/${tc.id}`)">
+              <td class="mono">{{ tc.tcCode }}</td>
+              <td>
+                {{ tc.title }}
+                <span v-if="tc.status === 'DEPRECATED'" class="chip chip-muted">폐기</span>
+                <span v-if="tc.originProjectName" class="chip chip-muted" :title="`원본: ${tc.originProjectName}`">가져옴</span>
+              </td>
+              <td v-if="folderKey === 'all'" class="small">{{ tc.folderName ?? '미분류' }}</td>
+              <td><PriorityChip :priority="tc.priority" /></td>
+              <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
+              <td><LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" /></td>
+              <td class="muted small">{{ formatDateTime(tc.updatedAt) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="!loading && !result.items.length" class="empty">이 폴더에 테스트케이스가 없습니다.</div>
+
+        <div v-if="totalPages > 1" class="pagination">
+          <button class="btn btn-sm" :disabled="page <= 1" @click="load(page - 1)">이전</button>
+          <span>{{ page }} / {{ totalPages }}</span>
+          <button class="btn btn-sm" :disabled="page >= totalPages" @click="load(page + 1)">다음</button>
+        </div>
+      </section>
+    </section>
   </div>
 
-  <form class="card filters" @submit.prevent="load()">
-    <input v-model="filter.keyword" class="input keyword" placeholder="코드 / 제목 / 태그 검색" />
-    <select v-model="filter.module" class="select">
-      <option value="">전체 모듈</option>
-      <option v-for="m in modules" :key="m" :value="m">{{ m }}</option>
-    </select>
-    <select v-model="filter.priority" class="select">
-      <option value="">전체 우선순위</option>
-      <option v-for="(label, key) in PRIORITY" :key="key" :value="key">{{ label }}</option>
-    </select>
-    <select v-model="filter.status" class="select">
-      <option value="">전체 상태</option>
-      <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
-    </select>
-    <select v-model="filter.source" class="select">
-      <option value="">전체 출처</option>
-      <option v-for="(s, key) in TC_SOURCE" :key="key" :value="key">{{ s.label }}</option>
-    </select>
-    <select v-model="filter.reviewStatus" class="select">
-      <option value="">전체 검토상태</option>
-      <option v-for="(s, key) in REVIEW_STATUS" :key="key" :value="key">{{ s.label }}</option>
-    </select>
-    <button type="submit" class="btn btn-primary">검색</button>
-    <button type="button" class="btn" @click="reset">초기화</button>
-  </form>
-
-  <section class="card">
-    <div class="list-header">
-      <span>
-        총 <strong>{{ result.total }}</strong>건
-        <button v-if="filter.atomicRequirementId" class="chip chip-accent filter-chip" @click="filter.atomicRequirementId = ''; load()">
-          원자 요구사항 #{{ filter.atomicRequirementId }} ✕
-        </button>
-      </span>
-      <span v-if="loading" class="muted">불러오는 중…</span>
-    </div>
-    <p v-if="error" class="error-text">{{ error }}</p>
-
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width: 110px">코드</th>
-          <th>제목</th>
-          <th style="width: 130px">모듈</th>
-          <th style="width: 80px">우선순위</th>
-          <th style="width: 80px">출처</th>
-          <th style="width: 80px">검토</th>
-          <th style="width: 50px">단계</th>
-          <th style="width: 50px">버전</th>
-          <th style="width: 80px">작성자</th>
-          <th style="width: 140px">수정일</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="tc in result.items"
-          :key="tc.id"
-          class="clickable"
-          @click="router.push(`/test-cases/${tc.id}`)"
-        >
-          <td class="mono">{{ tc.tcCode }}</td>
-          <td>
-            {{ tc.title }}
-            <span v-if="tc.status === 'DEPRECATED'" class="chip chip-muted">폐기</span>
-          </td>
-          <td>{{ tc.module ?? '-' }}</td>
-          <td><PriorityChip :priority="tc.priority" /></td>
-          <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
-          <td><LabelChip :map="REVIEW_STATUS" :value="tc.reviewStatus" /></td>
-          <td>{{ tc.stepCount }}</td>
-          <td>v{{ tc.version }}</td>
-          <td>{{ tc.authorName ?? '시스템' }}</td>
-          <td class="muted">{{ formatDateTime(tc.updatedAt) }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-if="!loading && !result.items.length" class="empty">조건에 맞는 테스트케이스가 없습니다.</div>
-
-    <div v-if="totalPages > 1" class="pagination">
-      <button class="btn btn-sm" :disabled="page <= 1" @click="load(page - 1)">이전</button>
-      <span>{{ page }} / {{ totalPages }}</span>
-      <button class="btn btn-sm" :disabled="page >= totalPages" @click="load(page + 1)">다음</button>
-    </div>
-  </section>
+  <ImportTestCaseModal
+    v-if="showImport && projectId"
+    :project-id="projectId"
+    :folder-id="selectedFolderId"
+    :folder-label="selectedFolderId ? folderLabel : '미분류'"
+    @close="showImport = false"
+    @imported="onImported"
+  />
 </template>
 
 <style scoped>
+.split {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+.folder-panel {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+  padding: var(--space-3);
+}
+.panel-title {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.node-root {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.node-root:hover {
+  background: var(--surface-hover);
+}
+.node-root.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.count {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+.add-folder {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.add-folder:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.folder-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.folder-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.list-area {
+  min-width: 0;
+}
+.list-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.folder-title {
+  font-size: var(--font-size-lg);
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.message {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: var(--font-size-sm);
+}
 .filters {
   display: flex;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
-  padding: var(--space-4);
-}
-.filters .select {
-  width: 130px;
-}
-.filter-chip {
-  margin-left: var(--space-2);
-  border: none;
-  cursor: pointer;
+  padding: var(--space-3);
 }
 .filters .keyword {
   flex: 1;
+}
+.filters .select {
+  width: 110px;
 }
 .list-header {
   display: flex;
   justify-content: space-between;
   margin-bottom: var(--space-3);
   color: var(--text-secondary);
+}
+.filter-chip {
+  margin-left: var(--space-2);
+  border: none;
+  cursor: pointer;
+}
+.small {
+  font-size: var(--font-size-xs);
 }
 .pagination {
   display: flex;

@@ -7,6 +7,7 @@ import PriorityChip from '@/components/PriorityChip.vue'
 
 const props = defineProps({
   cycleId: { type: Number, required: true },
+  projectId: { type: Number, required: true }, // 차수 소속 프로젝트 — 같은 프로젝트 TC만 등록 가능
   members: { type: Array, default: () => [] },
   registeredTcIds: { type: Set, default: () => new Set() },
 })
@@ -29,7 +30,7 @@ const allChecked = computed(
 async function search() {
   error.value = ''
   try {
-    const res = await testCaseApi.search({ ...filter, status: 'ACTIVE', reviewStatus: 'APPROVED', size: 100 })
+    const res = await testCaseApi.search({ ...filter, projectId: props.projectId, status: 'ACTIVE', reviewStatus: 'APPROVED', size: 100 })
     items.value = res.items
     total.value = res.total
   } catch (e) {

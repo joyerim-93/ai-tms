@@ -133,6 +133,7 @@ h1, h2, h3 {
   font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: 20px;
+  white-space: nowrap;
 }
 .chip-high { color: var(--priority-high-text); background: var(--priority-high-bg); }
 .chip-medium { color: var(--priority-medium-text); background: var(--priority-medium-bg); }

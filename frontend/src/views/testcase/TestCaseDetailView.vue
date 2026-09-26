@@ -42,7 +42,7 @@ async function remove() {
 
 <template>
   <div class="page-actions">
-    <button class="btn" @click="router.push('/test-cases')">목록</button>
+    <button class="btn" @click="router.push({ path: '/test-cases', query: tc?.folderId ? { folder: tc.folderId } : {} })">목록</button>
     <template v-if="tc">
       <button class="btn btn-danger" @click="remove">삭제</button>
       <button class="btn btn-primary" @click="router.push(`/test-cases/${tc.id}/edit`)">수정</button>
@@ -74,6 +74,9 @@ async function remove() {
       </div>
       <h2 class="title">{{ tc.title }}</h2>
       <dl class="meta">
+        <div><dt>프로젝트</dt><dd>{{ tc.projectName }}</dd></div>
+        <div><dt>폴더</dt><dd>{{ tc.folderName ?? '미분류' }}</dd></div>
+        <div v-if="tc.originProjectName"><dt>원본 프로젝트</dt><dd>{{ tc.originProjectName }}</dd></div>
         <div><dt>모듈</dt><dd>{{ tc.module ?? '-' }}</dd></div>
         <div><dt>태그</dt><dd>{{ tc.tags ?? '-' }}</dd></div>
         <div><dt>작성자</dt><dd>{{ tc.authorName ?? '시스템/AI' }}</dd></div>
@@ -86,7 +89,6 @@ async function remove() {
         <p class="pre">
           <RouterLink to="/test-cases/requirements" class="mono">{{ tc.reqCode }}</RouterLink>
           {{ tc.atomicText }}
-          <span v-if="tc.originProjectName" class="muted">(참고 프로젝트: {{ tc.originProjectName }})</span>
         </p>
       </div>
       <div v-if="tc.precondition" class="precondition">
