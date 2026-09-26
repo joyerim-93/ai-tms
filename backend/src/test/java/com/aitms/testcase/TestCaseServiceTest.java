@@ -26,7 +26,7 @@ class TestCaseServiceTest {
     JdbcTemplate jdbc;
 
     private TestCaseRequest request(String title, String module, List<StepRequest> steps) {
-        return new TestCaseRequest(title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", steps);
+        return new TestCaseRequest(title, module, "로그인 상태", Priority.HIGH, null, "login,smoke", null, null, steps);
     }
 
     @Test
@@ -35,6 +35,9 @@ class TestCaseServiceTest {
                 List.of(new StepRequest("ID/PW 입력", null), new StepRequest("로그인 클릭", "메인 이동"))));
 
         assertThat(tc.getTcCode()).matches("TC-\\d{5}");
+        assertThat(tc.getTcCode()).isGreaterThan("TC-00011"); // 샘플 코드 다음 번호
+        assertThat(tc.getSource()).isEqualTo(TcSource.MANUAL);
+        assertThat(tc.getReviewStatus()).isEqualTo(ReviewStatus.APPROVED);
         assertThat(tc.getVersion()).isEqualTo(1);
         assertThat(tc.getStatus()).isEqualTo(TestCaseStatus.ACTIVE);
         assertThat(tc.getAuthorName()).isEqualTo("김큐에이");
@@ -73,12 +76,38 @@ class TestCaseServiceTest {
     void 차수에_등록된_TC는_삭제할_수_없다() {
         TestCase used = service.create(request("사용중", null, List.of()));
         TestCase free = service.create(request("미사용", null, List.of(new StepRequest("x", null))));
-        jdbc.update("INSERT INTO test_cycle (id, project_id, cycle_no, name) VALUES (900, 1, 1, '1차')");
+        jdbc.update("INSERT INTO test_cycle (id, project_id, cycle_no, name) VALUES (900, 1, 99, '테스트차수')");
         jdbc.update("INSERT INTO test_execution (cycle_id, test_case_id, tc_version) VALUES (900, ?, 1)", used.getId());
 
         assertThatThrownBy(() -> service.delete(used.getId())).isInstanceOf(ApiException.class);
 
         service.delete(free.getId());
         assertThatThrownBy(() -> service.get(free.getId())).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void AI추천_DRAFT_TC를_승인하면_검토자와_일시가_기록된다() {
+        // 샘플 TC-00004: RULE 출처 DRAFT, 원자 요구사항(가입금액) 연결
+        TestCase draft = service.get(4L);
+        assertThat(draft.getReviewStatus()).isEqualTo(ReviewStatus.DRAFT);
+        assertThat(draft.getSource()).isEqualTo(TcSource.RULE);
+        assertThat(draft.getReqCode()).isEqualTo("REQ-001");
+        assertThat(draft.getAtomicText()).contains("가입금액");
+
+        TestCase approved = service.review(4L, ReviewStatus.APPROVED);
+
+        assertThat(approved.getReviewStatus()).isEqualTo(ReviewStatus.APPROVED);
+        assertThat(approved.getReviewedByName()).isEqualTo("김큐에이");
+        assertThat(approved.getReviewedAt()).isNotNull();
+    }
+
+    @Test
+    void 출처와_검토상태로_검색한다() {
+        TestCaseSearch search = new TestCaseSearch();
+        search.setSource(TcSource.RAG);
+        search.setReviewStatus(ReviewStatus.DRAFT);
+
+        assertThat(service.search(search).items()).extracting(TestCase::getTcCode).containsExactly("TC-00009", "TC-00008");
+        assertThat(service.search(search).items().get(0).getOriginProjectName()).isEqualTo("KB 자유적금 갈아타기 이벤트");
     }
 }

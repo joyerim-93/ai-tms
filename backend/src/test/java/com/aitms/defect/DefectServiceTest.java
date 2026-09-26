@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,14 +22,22 @@ import com.aitms.defect.DefectRequests.StatusChangeRequest;
 @Transactional
 class DefectServiceTest {
 
+    static final long PROJECT = 99L;       // 샘플 데이터와 분리된 테스트 전용 프로젝트
+    static final long OTHER_PROJECT = 98L;
+
     @Autowired
     DefectService service;
 
     @Autowired
     JdbcTemplate jdbc;
 
+    @BeforeEach
+    void setUp() {
+        jdbc.update("INSERT INTO project (id, code, name) VALUES (99, 'TEST', '테스트'), (98, 'TEST2', '다른 프로젝트')");
+    }
+
     private Defect create(String title, Long executionId) {
-        return service.create(new DefectRequest(1L, title, "재현 절차", Severity.MAJOR, Priority.HIGH, 2L, executionId));
+        return service.create(new DefectRequest(PROJECT, title, "재현 절차", Severity.MAJOR, Priority.HIGH, 2L, executionId));
     }
 
     private Long createExecution(long projectId) {
@@ -49,16 +58,16 @@ class DefectServiceTest {
         assertThat(second.getDefectCode()).isEqualTo("DF-0002");
         assertThat(first.getStatus()).isEqualTo(DefectStatus.NEW);
         assertThat(first.getReporterName()).isEqualTo("김큐에이");
-        assertThat(first.getAssigneeName()).isEqualTo("이개발");
+        assertThat(first.getAssigneeName()).isEqualTo("박개발");
         assertThat(first.getNextStatuses()).containsExactly(DefectStatus.OPEN, DefectStatus.REJECTED);
     }
 
     @Test
     void 수행항목에_연결하면_TC와_차수정보가_조인되고_실행ID로_조회된다() {
-        Long execId = createExecution(1L);
+        Long execId = createExecution(PROJECT);
         Defect d = create("로그인 실패", execId);
 
-        assertThat(d.getTcCode()).isEqualTo("TC-T1");
+        assertThat(d.getTcCode()).isEqualTo("TC-T99");
         assertThat(d.getCycleNo()).isEqualTo(1);
 
         DefectSearch search = new DefectSearch();
@@ -68,8 +77,7 @@ class DefectServiceTest {
 
     @Test
     void 다른_프로젝트의_수행항목에는_연결할_수_없다() {
-        jdbc.update("INSERT INTO project (id, code, name) VALUES (2, 'PRJ-2', '다른 프로젝트')");
-        Long otherExec = createExecution(2L);
+        Long otherExec = createExecution(OTHER_PROJECT);
 
         assertThatThrownBy(() -> create("x", otherExec)).isInstanceOf(ApiException.class);
     }
@@ -100,7 +108,7 @@ class DefectServiceTest {
         service.changeStatus(rejected.getId(), new StatusChangeRequest(DefectStatus.REJECTED, "중복"));
 
         DefectSearch search = new DefectSearch();
-        search.setProjectId(1L);
+        search.setProjectId(PROJECT);
         search.setUnresolved(true);
         assertThat(service.search(search).items()).extracting(Defect::getTitle).containsExactly("미해결1");
     }

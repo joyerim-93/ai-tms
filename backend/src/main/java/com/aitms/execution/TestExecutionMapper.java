@@ -13,7 +13,7 @@ public interface TestExecutionMapper {
 
     Optional<TestExecution> findById(Long id);
 
-    /** ACTIVE 이고 아직 차수에 없는 TC만 등록, 등록 건수 반환 */
+    /** ACTIVE·APPROVED 이고 아직 차수에 없는 TC만 등록, 등록 건수 반환 */
     int insertAll(@Param("cycleId") Long cycleId,
                   @Param("testCaseIds") List<Long> testCaseIds,
                   @Param("assigneeId") Long assigneeId);

@@ -23,6 +23,10 @@ public interface TestCaseMapper {
 
     int update(TestCase testCase);
 
+    int updateReview(@Param("id") Long id,
+                     @Param("reviewStatus") ReviewStatus reviewStatus,
+                     @Param("reviewedBy") Long reviewedBy);
+
     int delete(Long id);
 
     void deleteSteps(Long testCaseId);

@@ -34,22 +34,70 @@ CREATE TABLE IF NOT EXISTS project_member (
     PRIMARY KEY (project_id, user_id)
 );
 
--- ─────────────────────────────── ② 테스트케이스 저장소
+-- ─────────────────────────────── ② 요구사항 (AI 추천 입력)
+CREATE TABLE IF NOT EXISTS requirement (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id  BIGINT       NOT NULL REFERENCES project (id),
+    req_code    VARCHAR(30)  NOT NULL,                -- 예: REQ-001 (프로젝트 내 유일)
+    title       VARCHAR(200) NOT NULL,
+    description CLOB,                                 -- 요구사항 원문(raw text)
+    source      VARCHAR(10)  NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'PMS')),
+    priority    VARCHAR(10)  NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, req_code)
+);
+
+-- AI 에이전트가 원문을 분해한 원자 요구사항
+CREATE TABLE IF NOT EXISTS atomic_requirement (
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    requirement_id BIGINT         NOT NULL REFERENCES requirement (id) ON DELETE CASCADE,
+    atomic_text    VARCHAR(1000)  NOT NULL,
+    type           VARCHAR(30)    NOT NULL
+                   CHECK (type IN ('AMOUNT_RANGE', 'RATE_RANGE', 'PERIOD_CONDITION', 'BOOLEAN_FLAG')),
+    min_value      DECIMAL(18, 2),
+    max_value      DECIMAL(18, 2),
+    unit           VARCHAR(20),                        -- KRW, percent, year ...
+    conditions     VARCHAR(2000),                      -- JSON 문자열
+    created_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 규칙기반 추천용: 요구사항 타입별 정형 테스트 기법 템플릿
+CREATE TABLE IF NOT EXISTS rule_catalog (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    requirement_type VARCHAR(30)   NOT NULL
+                     CHECK (requirement_type IN ('AMOUNT_RANGE', 'RATE_RANGE', 'PERIOD_CONDITION', 'BOOLEAN_FLAG')),
+    technique        VARCHAR(30)   NOT NULL
+                     CHECK (technique IN ('BOUNDARY_VALUE', 'EQUIVALENCE_PARTITION', 'DECISION_TABLE')),
+    template         VARCHAR(2000) NOT NULL            -- {min}, {max} 치환
+);
+
+-- ─────────────────────────────── ② 테스트케이스 저장소 (프로젝트 비종속 중앙 자산)
 CREATE TABLE IF NOT EXISTS test_case (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    tc_code      VARCHAR(30)  NOT NULL UNIQUE,        -- 예: TC-00001
-    title        VARCHAR(200) NOT NULL,
-    module       VARCHAR(100),                        -- 업무 분류
-    precondition VARCHAR(2000),
-    priority     VARCHAR(10)  NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
-    status       VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DEPRECATED')),
-    tags         VARCHAR(500),                        -- 콤마 구분
-    author_id    BIGINT       REFERENCES users (id),
-    version      INT          NOT NULL DEFAULT 1,     -- 내용 수정 시 +1
-    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tc_code               VARCHAR(30)  NOT NULL UNIQUE,        -- 예: TC-00001
+    title                 VARCHAR(300) NOT NULL,
+    module                VARCHAR(100),                        -- 업무 분류
+    precondition          VARCHAR(2000),
+    priority              VARCHAR(10)  NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
+    status                VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DEPRECATED')),
+    tags                  VARCHAR(500),                        -- 콤마 구분
+    -- 추천/검토 (AI 추천 결과는 DRAFT로 들어와 검토 후 APPROVED)
+    source                VARCHAR(10)  NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'RULE', 'RAG', 'LLM')),
+    technique             VARCHAR(30)
+                          CHECK (technique IN ('BOUNDARY_VALUE', 'EQUIVALENCE_PARTITION', 'DECISION_TABLE', 'EXPLORATORY')),
+    review_status         VARCHAR(10)  NOT NULL DEFAULT 'APPROVED' CHECK (review_status IN ('DRAFT', 'APPROVED', 'REJECTED')),
+    atomic_requirement_id BIGINT       REFERENCES atomic_requirement (id) ON DELETE SET NULL,
+    origin_project_id     BIGINT       REFERENCES project (id),  -- RAG로 가져온 경우 원본 프로젝트
+    reviewed_by           BIGINT       REFERENCES users (id),
+    reviewed_at           TIMESTAMP,
+    author_id             BIGINT       REFERENCES users (id),  -- NULL = 시스템/AI 생성
+    version               INT          NOT NULL DEFAULT 1,     -- 내용 수정 시 +1
+    created_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_test_case_module ON test_case (module);
+CREATE INDEX IF NOT EXISTS idx_test_case_atomic ON test_case (atomic_requirement_id);
 
 CREATE TABLE IF NOT EXISTS test_step (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -58,27 +106,6 @@ CREATE TABLE IF NOT EXISTS test_step (
     action          VARCHAR(2000) NOT NULL,
     expected_result VARCHAR(2000),
     UNIQUE (test_case_id, step_no)
-);
-
-CREATE TABLE IF NOT EXISTS requirement (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    project_id  BIGINT       NOT NULL REFERENCES project (id),
-    req_code    VARCHAR(30)  NOT NULL,
-    title       VARCHAR(200) NOT NULL,
-    description CLOB,                                 -- RAG 입력 원문
-    priority    VARCHAR(10)  NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('HIGH', 'MEDIUM', 'LOW')),
-    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (project_id, req_code)
-);
-
-CREATE TABLE IF NOT EXISTS requirement_tc (
-    requirement_id BIGINT       NOT NULL REFERENCES requirement (id) ON DELETE CASCADE,
-    test_case_id   BIGINT       NOT NULL REFERENCES test_case (id),
-    source         VARCHAR(10)  NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'AI')),
-    score          DECIMAL(5, 4),                      -- AI 추천 유사도 (MANUAL은 NULL)
-    created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (requirement_id, test_case_id)
 );
 
 -- ─────────────────────────────── ③ 테스트수행관리
@@ -152,5 +179,3 @@ CREATE TABLE IF NOT EXISTS defect_comment (
     created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ─────────────────────────────── 코드 채번 시퀀스
-CREATE SEQUENCE IF NOT EXISTS tc_code_seq START WITH 1;

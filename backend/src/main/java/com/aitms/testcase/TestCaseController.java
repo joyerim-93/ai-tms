@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -49,6 +50,11 @@ public class TestCaseController {
     @PutMapping("/{id}")
     public TestCase update(@PathVariable Long id, @Validated @RequestBody TestCaseRequest req) {
         return service.update(id, req);
+    }
+
+    @PatchMapping("/{id}/review")
+    public TestCase review(@PathVariable Long id, @Validated @RequestBody TestCaseRequest.ReviewRequest req) {
+        return service.review(id, req.reviewStatus());
     }
 
     @DeleteMapping("/{id}")

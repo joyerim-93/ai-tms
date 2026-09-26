@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aitms.common.Priority;
@@ -33,6 +35,14 @@ class DashboardServiceTest {
 
     static final long ME = 1L;     // CurrentUser (qa01)
     static final long OTHER = 2L;
+    static final long P = 99L;     // 샘플 데이터와 분리된 테스트 전용 프로젝트
+
+    @Autowired JdbcTemplate jdbc;
+
+    @BeforeEach
+    void setUp() {
+        jdbc.update("INSERT INTO project (id, code, name) VALUES (99, 'TEST', '테스트')");
+    }
 
     @Autowired DashboardService dashboard;
     @Autowired TestCaseService testCaseService;
@@ -41,22 +51,22 @@ class DashboardServiceTest {
     @Autowired DefectService defectService;
 
     private Long tc(String title) {
-        return testCaseService.create(new TestCaseRequest(title, null, null, Priority.MEDIUM, null, null, List.of())).getId();
+        return testCaseService.create(new TestCaseRequest(title, null, null, Priority.MEDIUM, null, null, null, null, List.of())).getId();
     }
 
     private TestCycle cycle(String name, List<Long> tcIds, Long assignee) {
-        TestCycle c = cycleService.create(new CycleRequest(1L, name, null, null, null));
+        TestCycle c = cycleService.create(new CycleRequest(P, name, null, null, null));
         executionService.add(c.getId(), new AddExecutionsRequest(tcIds, assignee));
         return c;
     }
 
     private Long defect(Severity severity, Long assignee) {
-        return defectService.create(new DefectRequest(1L, "결함", null, severity, Priority.HIGH, assignee, null)).getId();
+        return defectService.create(new DefectRequest(P, "결함", null, severity, Priority.HIGH, assignee, null)).getId();
     }
 
     @Test
     void 데이터가_없으면_0과_빈목록() {
-        DashboardSummary s = dashboard.summary(1L);
+        DashboardSummary s = dashboard.summary(P);
 
         assertThat(s.myPendingExecutionCount()).isZero();
         assertThat(s.currentCycle()).isNull();
@@ -75,7 +85,7 @@ class DashboardServiceTest {
         Long doneId = executionService.findByCycle(first.getId(), new ExecutionSearch()).get(0).getId();
         executionService.record(doneId, new ResultRequest(ExecutionResult.FAIL, null));
 
-        DashboardSummary s = dashboard.summary(1L);
+        DashboardSummary s = dashboard.summary(P);
 
         assertThat(s.myPendingExecutionCount()).isEqualTo(1);
         assertThat(s.myExecutions()).extracting(MyExecution::getTcTitle).containsExactly("B");
@@ -92,7 +102,7 @@ class DashboardServiceTest {
         Long rejected = defect(Severity.CRITICAL, ME);
         defectService.changeStatus(rejected, new StatusChangeRequest(DefectStatus.REJECTED, null));
 
-        DashboardSummary s = dashboard.summary(1L);
+        DashboardSummary s = dashboard.summary(P);
 
         assertThat(s.unresolvedDefectCount()).isEqualTo(2);
         assertThat(s.criticalDefectCount()).isEqualTo(1);

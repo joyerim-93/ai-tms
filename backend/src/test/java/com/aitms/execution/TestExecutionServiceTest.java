@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aitms.common.ApiException;
@@ -34,23 +35,29 @@ class TestExecutionServiceTest {
     @Autowired
     TestCaseService testCaseService;
 
+    static final Long PROJECT = 99L; // 샘플 데이터와 분리된 테스트 전용 프로젝트
+
+    @Autowired
+    JdbcTemplate jdbc;
+
     Long tc1;
     Long tc2;
     Long deprecated;
 
     @BeforeEach
     void setUp() {
+        jdbc.update("INSERT INTO project (id, code, name) VALUES (99, 'TEST', '테스트 프로젝트')");
         tc1 = createTc("TC1", TestCaseStatus.ACTIVE);
         tc2 = createTc("TC2", TestCaseStatus.ACTIVE);
         deprecated = createTc("폐기", TestCaseStatus.DEPRECATED);
     }
 
     private Long createTc(String title, TestCaseStatus status) {
-        return testCaseService.create(new TestCaseRequest(title, null, null, Priority.MEDIUM, status, null, List.of())).getId();
+        return testCaseService.create(new TestCaseRequest(title, null, null, Priority.MEDIUM, status, null, null, null, List.of())).getId();
     }
 
     private TestCycle createCycle(String name) {
-        return cycleService.create(new CycleRequest(1L, name, null, null, null));
+        return cycleService.create(new CycleRequest(PROJECT, name, null, null, null));
     }
 
     @Test
@@ -74,7 +81,7 @@ class TestExecutionServiceTest {
 
         List<TestExecution> list = executionService.findByCycle(cycle.getId(), new ExecutionSearch());
         assertThat(list).extracting(TestExecution::getTcTitle).containsExactly("TC1", "TC2");
-        assertThat(list.get(0).getAssigneeName()).isEqualTo("이개발");
+        assertThat(list.get(0).getAssigneeName()).isEqualTo("박개발");
     }
 
     @Test
@@ -126,5 +133,12 @@ class TestExecutionServiceTest {
         assertThatThrownBy(() -> executionService.record(execId, new ResultRequest(ExecutionResult.PASS, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("종료");
+    }
+
+    @Test
+    void 검토_승인되지_않은_AI추천_TC는_차수에_등록되지_않는다() {
+        TestCycle cycle = createCycle("1차");
+        // 샘플 TC 7(DRAFT), 11(REJECTED)
+        assertThat(executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(7L, 11L, tc1), null))).isEqualTo(1);
     }
 }

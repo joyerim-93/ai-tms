@@ -2,6 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitms.testcase.TestCaseMapper">
 
+    <sql id="selectJoined">
+        SELECT tc.*,
+               u.name         AS author_name,
+               ar.atomic_text,
+               r.id           AS requirement_id,
+               r.req_code,
+               op.name        AS origin_project_name,
+               rv.name        AS reviewed_by_name
+          FROM test_case tc
+          LEFT JOIN users u               ON u.id = tc.author_id
+          LEFT JOIN atomic_requirement ar ON ar.id = tc.atomic_requirement_id
+          LEFT JOIN requirement r         ON r.id = ar.requirement_id
+          LEFT JOIN project op            ON op.id = tc.origin_project_id
+          LEFT JOIN users rv              ON rv.id = tc.reviewed_by
+    </sql>
+
     <sql id="searchWhere">
         <where>
             <if test="keyword != null and keyword != ''">
@@ -12,17 +28,16 @@
             <if test="module != null and module != ''">AND tc.module = #{module}</if>
             <if test="priority != null">AND tc.priority = #{priority}</if>
             <if test="status != null">AND tc.status = #{status}</if>
+            <if test="source != null">AND tc.source = #{source}</if>
+            <if test="reviewStatus != null">AND tc.review_status = #{reviewStatus}</if>
+            <if test="atomicRequirementId != null">AND tc.atomic_requirement_id = #{atomicRequirementId}</if>
         </where>
     </sql>
 
     <select id="search" resultType="com.aitms.testcase.TestCase">
-        SELECT tc.*,
-               u.name AS author_name,
-               (SELECT COUNT(*) FROM test_step s WHERE s.test_case_id = tc.id) AS step_count
-          FROM test_case tc
-          LEFT JOIN users u ON u.id = tc.author_id
-        <include refid="searchWhere"/>
-         ORDER BY tc.id DESC
+        SELECT j.*, (SELECT COUNT(*) FROM test_step s WHERE s.test_case_id = j.id) AS step_count
+          FROM (<include refid="selectJoined"/> <include refid="searchWhere"/>) j
+         ORDER BY j.id DESC
          LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -32,9 +47,7 @@
     </select>
 
     <select id="findById" resultType="com.aitms.testcase.TestCase">
-        SELECT tc.*, u.name AS author_name
-          FROM test_case tc
-          LEFT JOIN users u ON u.id = tc.author_id
+        <include refid="selectJoined"/>
          WHERE tc.id = #{id}
     </select>
 
@@ -46,22 +59,37 @@
         SELECT DISTINCT module FROM test_case WHERE module IS NOT NULL AND module != '' ORDER BY module
     </select>
 
+    <!-- TC 코드: TC-00001 형식 max+1 (샘플 데이터의 명시 코드와 충돌하지 않도록 시퀀스 대신 MAX 사용) -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO test_case (tc_code, title, module, precondition, priority, status, tags, author_id)
-        VALUES (CONCAT('TC-', LPAD(CAST(NEXT VALUE FOR tc_code_seq AS VARCHAR), 5, '0')),
-                #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags}, #{authorId})
+        INSERT INTO test_case (tc_code, title, module, precondition, priority, status, tags,
+                               source, technique, review_status, atomic_requirement_id, origin_project_id, author_id)
+        VALUES ((SELECT CONCAT('TC-', LPAD(CAST(COALESCE(MAX(CAST(SUBSTRING(tc_code, 4) AS INT)), 0) + 1 AS VARCHAR), 5, '0'))
+                   FROM test_case WHERE tc_code LIKE 'TC-%'),
+                #{title}, #{module}, #{precondition}, #{priority}, #{status}, #{tags},
+                #{source}, #{technique}, #{reviewStatus}, #{atomicRequirementId}, #{originProjectId}, #{authorId})
     </insert>
 
     <update id="update">
         UPDATE test_case
-           SET title        = #{title},
-               module       = #{module},
-               precondition = #{precondition},
-               priority     = #{priority},
-               status       = #{status},
-               tags         = #{tags},
-               version      = version + 1,
-               updated_at   = CURRENT_TIMESTAMP
+           SET title                 = #{title},
+               module                = #{module},
+               precondition          = #{precondition},
+               priority              = #{priority},
+               status                = #{status},
+               tags                  = #{tags},
+               technique             = #{technique},
+               atomic_requirement_id = #{atomicRequirementId},
+               version               = version + 1,
+               updated_at            = CURRENT_TIMESTAMP
+         WHERE id = #{id}
+    </update>
+
+    <update id="updateReview">
+        UPDATE test_case
+           SET review_status = #{reviewStatus},
+               reviewed_by   = #{reviewedBy},
+               reviewed_at   = CURRENT_TIMESTAMP,
+               updated_at    = CURRENT_TIMESTAMP
          WHERE id = #{id}
     </update>
 

@@ -12,6 +12,9 @@ public class TestCaseSearch {
     private String module;
     private Priority priority;
     private TestCaseStatus status;
+    private TcSource source;
+    private ReviewStatus reviewStatus;
+    private Long atomicRequirementId;
     private int page = 1;
     private int size = 20;
 

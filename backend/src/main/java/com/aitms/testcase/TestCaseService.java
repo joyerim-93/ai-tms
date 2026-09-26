@@ -38,6 +38,8 @@ public class TestCaseService {
     public TestCase create(TestCaseRequest req) {
         TestCase tc = apply(new TestCase(), req);
         tc.setAuthorId(CurrentUser.id());
+        tc.setSource(TcSource.MANUAL);
+        tc.setReviewStatus(ReviewStatus.APPROVED);
         mapper.insert(tc);
         saveSteps(tc.getId(), req.steps());
         return get(tc.getId());
@@ -50,6 +52,14 @@ public class TestCaseService {
         mapper.update(tc);
         mapper.deleteSteps(id);
         saveSteps(id, req.steps());
+        return get(id);
+    }
+
+    /** AI 추천(DRAFT) TC 승인/반려. 검토자 = CurrentUser */
+    @Transactional
+    public TestCase review(Long id, ReviewStatus reviewStatus) {
+        get(id);
+        mapper.updateReview(id, reviewStatus, CurrentUser.id());
         return get(id);
     }
 
@@ -70,6 +80,8 @@ public class TestCaseService {
         tc.setPriority(req.priority());
         tc.setStatus(req.status() != null ? req.status() : TestCaseStatus.ACTIVE);
         tc.setTags(blankToNull(req.tags()));
+        tc.setTechnique(req.technique());
+        tc.setAtomicRequirementId(req.atomicRequirementId());
         return tc;
     }
 

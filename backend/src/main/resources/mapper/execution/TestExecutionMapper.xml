@@ -39,6 +39,7 @@
         SELECT #{cycleId}, tc.id, tc.version, #{assigneeId}
           FROM test_case tc
          WHERE tc.status = 'ACTIVE'
+           AND tc.review_status = 'APPROVED'
            AND tc.id IN
            <foreach collection="testCaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
            AND NOT EXISTS (SELECT 1 FROM test_execution e
