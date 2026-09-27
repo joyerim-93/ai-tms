@@ -12,8 +12,8 @@ spring:
       mode: always   # schema.sql 추가 시 기동마다 실행 (CREATE TABLE IF NOT EXISTS 사용)
   servlet:
     multipart:
-      max-file-size: 5MB      # 엑셀 업로드
-      max-request-size: 5MB
+      max-file-size: 10MB     # 엑셀 업로드·증빙 첨부 (파일 1개당)
+      max-request-size: 30MB
   h2:
     console:
       enabled: true
@@ -35,6 +35,8 @@ server:
         same-site: lax
 
 app:
+  upload:
+    dir: ./uploads            # 첨부파일 저장 루트 (backend 실행 위치 기준, git 제외) — DB에는 이 아래의 상대 경로만 저장
   security:
     # 비밀번호가 없는 사용자(샘플 사용자 등)에게 기동 시 넣는 초기 비밀번호 — 개발용, 운영에서는 반드시 변경/제거
     initial-password: aitms1234!

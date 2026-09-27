@@ -24,7 +24,7 @@ class SchemaInitTest {
     void 모든_테이블이_생성된다() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'", Integer.class);
-        assertThat(count).isEqualTo(17);
+        assertThat(count).isEqualTo(19);
     }
 
     @Test

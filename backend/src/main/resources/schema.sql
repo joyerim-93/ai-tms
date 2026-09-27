@@ -233,3 +233,29 @@ CREATE TABLE IF NOT EXISTS recommendation_job (
     result_json           TEXT                                                                   -- 성공 시 결과 요약 {createdIds, skipped, warnings, scores}
 );
 CREATE INDEX IF NOT EXISTS idx_rec_job_requirement ON recommendation_job (requirement_id, id);
+
+-- 증빙 첨부파일 — 파일은 app.upload.dir(기본 backend/uploads/) 디스크에 저장, DB에는 상대 경로만 (docs 의 test_round_case = 이 프로젝트의 test_execution)
+CREATE TABLE IF NOT EXISTS test_execution_attachment (
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    execution_id BIGINT        NOT NULL REFERENCES test_execution (id) ON DELETE CASCADE,
+    file_name    VARCHAR(255)  NOT NULL,                  -- 원본 파일명(표시·다운로드용)
+    file_path    VARCHAR(500)  NOT NULL,                  -- 업로드 루트 기준 상대 경로 (예: executions/12/3f2a….png)
+    content_type VARCHAR(100)  NOT NULL,
+    file_size    BIGINT        NOT NULL,
+    uploaded_by  BIGINT        NOT NULL REFERENCES users (id),
+    uploaded_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_exec_attachment ON test_execution_attachment (execution_id);
+
+-- 결함 첨부파일 (재현 스크린샷 등) — 위와 같은 구조
+CREATE TABLE IF NOT EXISTS defect_attachment (
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    defect_id    BIGINT        NOT NULL REFERENCES defect (id) ON DELETE CASCADE,
+    file_name    VARCHAR(255)  NOT NULL,
+    file_path    VARCHAR(500)  NOT NULL,
+    content_type VARCHAR(100)  NOT NULL,
+    file_size    BIGINT        NOT NULL,
+    uploaded_by  BIGINT        NOT NULL REFERENCES users (id),
+    uploaded_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_defect_attachment ON defect_attachment (defect_id);

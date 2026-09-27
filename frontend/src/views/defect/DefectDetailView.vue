@@ -6,6 +6,7 @@ import { DEFECT_STATUS, SEVERITY, formatDateTime } from '@/constants/labels'
 import LabelChip from '@/components/LabelChip.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
+import AttachmentPanel from '@/components/AttachmentPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,6 +72,11 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
         <h2 class="title">{{ defect.title }}</h2>
         <p v-if="defect.description" class="pre">{{ defect.description }}</p>
         <p v-else class="muted">상세 내용이 없습니다.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-title">첨부파일</div>
+        <AttachmentPanel base="defects" :owner-id="defect.id" />
       </section>
 
       <section class="card">

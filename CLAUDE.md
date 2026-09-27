@@ -81,6 +81,7 @@ ai-tms/
 - **test_execution_history**(execution_id, result, executed_by, executed_at, comment) — 차수×TC별 모든 수행 기록
 - **defect**(project_id, defect_code, severity, priority, status `NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED|REJECTED`, reporter_id, assignee_id, execution_id nullable)
 - **defect_comment**(defect_id, author_id, content, status_from/to)
+- **test_execution_attachment**(execution_id, file_name, file_path, content_type, file_size, uploaded_by, uploaded_at) / **defect_attachment**(defect_id, …동일) — 증빙 첨부. 파일은 디스크, DB엔 업로드 루트 기준 **상대 경로**만
 - 대시보드는 별도 테이블 없이 집계 쿼리.
 - 기타 enum: project.status `ACTIVE|CLOSED`, project_role `PM|DEV|BIZ|QA`, priority `HIGH|MEDIUM|LOW`, severity `CRITICAL|MAJOR|MINOR|TRIVIAL`. 모두 VARCHAR + CHECK 제약.
 
@@ -146,6 +147,9 @@ ai-tms/
 | POST / PUT | `/api/test-cases`, `/api/test-cases/{id}` | 등록/수정 (수정 시 version+1, 단계 전체 교체) |
 | DELETE | `/api/test-cases/{id}` | 차수 등록 이력 있으면 409 → 폐기(DEPRECATED)로 유도 |
 
+| GET / POST | `/api/executions/{id}/attachments` (multipart `file`, 여러 개) | 실행 결과 증빙 목록 / 업로드(201) |
+| GET / DELETE | `/api/executions/{id}/attachments/{attId}[/file?inline=true]` | 다운로드(attachment, 이미지만 inline 허용) / 삭제(업로더·ADMIN) |
+| GET / POST / DELETE | `/api/defects/{id}/attachments[...]` | 결함 첨부 — 위와 같은 구조 |
 | POST/GET | `/api/auth/login`, `/api/auth/me`, POST `/api/auth/logout` | 로그인(공개) / 현재 사용자 / 로그아웃 |
 | GET | `/api/projects`, `/api/projects/{id}/members` | 프로젝트 목록 / 담당자 후보 |
 | GET | `/api/cycles?projectId` | 차수 목록 + 결과별 집계(totalCount/passCount/failCount/blockedCount/notRunCount) |
@@ -249,6 +253,13 @@ npm run dev      # http://localhost:5173  (/api → 8080 프록시)
 npm run build
 ```
 
+### 첨부파일 규칙 (com.aitms.attachment)
+- 저장: `app.upload.dir`(기본 `./uploads` = backend 실행 위치, **git 제외**) 아래 `executions/{id}/`·`defects/{id}/`에 **UUID 이름**으로 저장, DB에는 상대 경로·원본 파일명·MIME·크기·업로더. 서버 경로는 API 응답에 노출하지 않음(`@JsonIgnore`).
+- 제한: 확장자 화이트리스트(png/jpg/jpeg/gif/webp/bmp/pdf/txt/log/csv/json/zip/xlsx/docx — **svg·html 등 제외**), Content-Type 은 확장자로 결정(클라이언트 값 불신), 파일당 10MB(`spring.servlet.multipart`), 항목당 최대 20개, 빈 파일/허용 안 된 형식 400, 파일명의 경로 구분자·제어문자 제거, 읽을 때도 업로드 루트 이탈 검사.
+- 규칙: 대상(실행 항목/결함)이 없으면 404, **CLOSED 차수의 실행 항목은 추가·삭제 409(조회·다운로드는 가능)**, 삭제는 **업로더 또는 ADMIN**만(403), DB 행 삭제 시 디스크 파일도 삭제. 다운로드는 `Content-Disposition: attachment`, `?inline=true`는 이미지에만(썸네일).
+- 요청서의 `test_round_case*`/`/api/test-round-cases`는 이 프로젝트 명칭인 `test_execution*`/`/api/executions`로 구현. 두 테이블은 구조가 같아 `AttachmentMapper` 하나가 `AttachmentTarget` enum 상수(`${}`)로 공용 처리(사용자 입력은 절대 `${}`에 넣지 않음).
+- 화면: 공용 `AttachmentPanel`(파일 선택·드래그앤드롭·**Ctrl+V 스크린샷 붙여넣기**, 이미지 썸네일/파일 아이콘 목록, 클릭 시 다운로드). 실행 결과 입력 패널에 표시하고 **결과가 FAIL/BLOCKED이며 첨부가 없으면 붉은 안내·펄스 강조**로 첨부 유도. 결함 상세에 표시, 결함 등록/수정 화면에도 있음(등록 시엔 파일을 모아 두었다가 저장 후 업로드, 업로드만 실패하면 이슈는 유지하고 안내).
+
 ### 결함관리 규칙
 - 코드: 프로젝트 내 `DF-0001` 순번. 등록 시 상태 NEW, 보고자 = CurrentUser.
 - 상태 흐름: NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED, NEW/OPEN→REJECTED, RESOLVED/CLOSED/REJECTED→OPEN(재오픈). 규칙은 `DefectStatus.next()` 한 곳에만 정의 — 화면은 응답의 `nextStatuses`로 버튼 생성.
@@ -275,10 +286,11 @@ npm run build
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
 - ✅ 담당자명 입력(표시용) → Spring Security 로그인으로 대체됨
+- ✅ **증빙 첨부**(테스트 수행 결과·결함): 로컬 디스크 저장, AttachmentPanel, FAIL 시 첨부 유도 (테스트 91개)
 - ✅ **Spring Security 로그인**: 세션+CSRF, BCrypt, 로그인 화면·가드, `/api/**` 보호, H2 콘솔 ADMIN 전용 (테스트 83개)
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
-- ⏳ **다음(사용자 지정 순서):** 1) ~~Spring Security 로그인~~ ✅ 2) 다크모드 / StatCard. (진행 중 추가 요청: 테스트수행 결과·이슈 첨부파일) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
+- ⏳ **다음(사용자 지정 순서):** 1) ~~Spring Security 로그인~~ ✅ 2) 다크모드 / StatCard. (추가 요청분 첨부파일 ✅) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

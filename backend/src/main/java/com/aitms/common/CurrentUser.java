@@ -17,6 +17,11 @@ public final class CurrentUser {
     private CurrentUser() {
     }
 
+    public static boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getPrincipal() instanceof AuthUser user && "ADMIN".equals(user.role());
+    }
+
     public static Long id() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof AuthUser user) {

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.attachment.AttachmentMapper">
+
+    <!-- ${t.table}/${t.ownerColumn} 는 AttachmentTarget enum 상수만 (사용자 입력 아님) -->
+    <sql id="select">
+        SELECT a.id, a.${t.ownerColumn} AS owner_id, a.file_name, a.file_path, a.content_type, a.file_size,
+               a.uploaded_by, u.name AS uploaded_by_name, a.uploaded_at
+          FROM ${t.table} a
+          JOIN users u ON u.id = a.uploaded_by
+    </sql>
+
+    <select id="findByOwner" resultType="com.aitms.attachment.Attachment">
+        <include refid="select"/>
+         WHERE a.${t.ownerColumn} = #{ownerId}
+         ORDER BY a.id
+    </select>
+
+    <select id="findById" resultType="com.aitms.attachment.Attachment">
+        <include refid="select"/>
+         WHERE a.id = #{id} AND a.${t.ownerColumn} = #{ownerId}
+    </select>
+
+    <select id="countByOwner" resultType="int">
+        SELECT COUNT(*) FROM ${t.table} WHERE ${t.ownerColumn} = #{ownerId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="a.id" keyColumn="id">
+        INSERT INTO ${t.table} (${t.ownerColumn}, file_name, file_path, content_type, file_size, uploaded_by)
+        VALUES (#{a.ownerId}, #{a.fileName}, #{a.filePath}, #{a.contentType}, #{a.fileSize}, #{a.uploadedBy})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM ${t.table} WHERE id = #{id}
+    </delete>
+</mapper>

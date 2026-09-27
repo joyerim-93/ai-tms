@@ -9,6 +9,8 @@ import { useProjectStore } from '@/stores/projectStore'
 import { useAuthStore } from '@/stores/authStore'
 import { PRIORITY, SEVERITY } from '@/constants/labels'
 import StatusBadge from '@/components/StatusBadge.vue'
+import AttachmentPanel from '@/components/AttachmentPanel.vue'
+import { attachmentApi } from '@/api/attachments'
 
 // 등록: /defects/new[?executionId=] (실패 결과 패널에서 진입 시 TC 연결·내용 자동 채움)
 // 수정: /defects/:id/edit
@@ -17,6 +19,7 @@ const router = useRouter()
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 const id = route.params.id
 const isEdit = computed(() => !!id)
+const pendingFiles = ref([]) // 등록 시 선택한 첨부(재현 스크린샷) — 저장 후 업로드
 const auth = useAuthStore() // 보고자 = 로그인 사용자(서버가 기록), 담당자는 기본값 없이 직접 지정
 
 const form = reactive({
@@ -87,6 +90,14 @@ async function save() {
   }
   try {
     const saved = isEdit.value ? await defectApi.update(id, body) : await defectApi.create(body)
+    if (pendingFiles.value.length) {
+      try {
+        await attachmentApi('defects').upload(saved.id, pendingFiles.value)
+      } catch (e) {
+        // 이슈는 이미 등록됨 — 상세 화면에서 다시 첨부할 수 있음
+        window.alert(`이슈는 등록되었지만 첨부 업로드에 실패했습니다: ${e.message}\n상세 화면에서 다시 첨부해 주세요.`)
+      }
+    }
     router.replace(`/defects/${saved.id}`)
   } catch (e) {
     error.value = e.message
@@ -145,6 +156,10 @@ async function save() {
         <div class="span-4">
           <label class="label">상세 내용</label>
           <textarea v-model="form.description" class="textarea description" />
+        </div>
+        <div class="span-4">
+          <AttachmentPanel v-if="isEdit" base="defects" :owner-id="id" />
+          <AttachmentPanel v-else v-model:pending="pendingFiles" base="defects" />
         </div>
       </div>
     </section>

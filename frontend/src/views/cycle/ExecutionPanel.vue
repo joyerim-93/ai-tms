@@ -10,6 +10,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
 import DatasetTable from '@/components/DatasetTable.vue'
+import AttachmentPanel from '@/components/AttachmentPanel.vue'
 import { substitute } from '@/utils/params'
 
 // 우측 슬라이드 패널: TC 절차 확인 + 결과 입력 + 수행 이력
@@ -121,6 +122,13 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
               <span class="executor-name">{{ auth.currentUserName }}</span>
             </div>
             <textarea v-model="comment" class="textarea" maxlength="2000" placeholder="코멘트 (선택)" />
+            <AttachmentPanel
+              base="executions"
+              :owner-id="executionId"
+              :emphasize="exec.result === 'FAIL' || exec.result === 'BLOCKED'"
+              emphasize-text="실패/Block 결과입니다 — 원인 확인을 위해 스크린샷이나 로그를 첨부해 주세요."
+              class="attach-block"
+            />
             <div class="result-buttons">
               <button
                 v-for="(label, key) in RESULT"
@@ -134,7 +142,10 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
               </button>
             </div>
           </section>
-          <p v-else class="muted">종료된 차수는 결과를 입력할 수 없습니다.</p>
+          <section v-else class="block">
+            <p class="muted">종료된 차수는 결과를 입력할 수 없습니다.</p>
+            <AttachmentPanel base="executions" :owner-id="executionId" readonly />
+          </section>
 
           <section class="block">
             <div class="block-head">
@@ -297,6 +308,9 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-sm);
+}
+.attach-block {
+  margin: var(--space-3) 0;
 }
 .executor {
   display: flex;
