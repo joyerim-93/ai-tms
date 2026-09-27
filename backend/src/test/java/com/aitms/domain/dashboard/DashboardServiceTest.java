@@ -20,7 +20,7 @@ import com.aitms.domain.defect.Severity;
 import com.aitms.domain.execution.CycleStatus;
 import com.aitms.domain.execution.ExecutionRequests.AddExecutionsRequest;
 import com.aitms.domain.execution.ExecutionRequests.CycleRequest;
-import com.aitms.domain.execution.ExecutionRequests.ResultRequest;
+import com.aitms.domain.execution.ExecutionRequests.PatchRequest;
 import com.aitms.domain.execution.ExecutionResult;
 import com.aitms.domain.execution.ExecutionSearch;
 import com.aitms.domain.execution.TestCycle;
@@ -83,7 +83,7 @@ class DashboardServiceTest {
         cycleService.update(closed.getId(), new CycleRequest(null, "3차", null, null, CycleStatus.CLOSED));
 
         Long doneId = executionService.findByCycle(first.getId(), new ExecutionSearch()).get(0).getId();
-        executionService.record(doneId, new ResultRequest(ExecutionResult.FAIL, null));
+        executionService.patch(doneId, new PatchRequest(ExecutionResult.FAIL, null));
 
         DashboardSummary s = dashboard.summary(P);
 
@@ -116,13 +116,13 @@ class DashboardServiceTest {
         TestCycle first = cycle("1차", List.of(a, b), ME);
         List<Long> firstIds = executionService.findByCycle(first.getId(), new ExecutionSearch()).stream()
                 .map(e -> e.getId()).toList();
-        executionService.record(firstIds.get(0), new ResultRequest(ExecutionResult.PASS, null));
-        executionService.record(firstIds.get(1), new ResultRequest(ExecutionResult.FAIL, null));
+        executionService.patch(firstIds.get(0), new PatchRequest(ExecutionResult.PASS, null));
+        executionService.patch(firstIds.get(1), new PatchRequest(ExecutionResult.FAIL, null));
         cycleService.update(first.getId(), new CycleRequest(null, "1차", null, null, CycleStatus.CLOSED));
 
         TestCycle second = cycle("2차", List.of(a, b, c), ME);
         Long secondFirst = executionService.findByCycle(second.getId(), new ExecutionSearch()).get(0).getId();
-        executionService.record(secondFirst, new ResultRequest(ExecutionResult.PASS, null)); // 1/1 수행 통과, 2건 미수행
+        executionService.patch(secondFirst, new PatchRequest(ExecutionResult.PASS, null)); // 1/1 수행 통과, 2건 미수행
         cycle("3차", List.of(a), ME); // 계획 상태
         defect(Severity.MINOR, OTHER);
 

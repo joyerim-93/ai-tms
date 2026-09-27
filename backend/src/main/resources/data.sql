@@ -178,23 +178,23 @@ INSERT IGNORE INTO test_cycle (id, project_id, cycle_no, name, start_date, end_d
 
 -- 8. 차수별 수행 항목 (원본 test_round_case: success/fail/block/not_executed → PASS/FAIL/BLOCKED/NOT_RUN)
 --    미수행 항목은 qa.kim 담당으로 배정 → 대시보드 '내 할일'에 노출
-INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, tc_version, assignee_id, result, executed_by, executed_at) VALUES
-    (1, 1, 1, 1, 1, 'PASS',    1,    TIMESTAMP '2026-09-22 10:15:00'),
-    (2, 1, 2, 1, 1, 'PASS',    1,    TIMESTAMP '2026-09-22 10:20:00'),
-    (3, 1, 3, 1, 1, 'FAIL',    1,    TIMESTAMP '2026-09-22 11:00:00'),
-    (4, 1, 4, 1, 1, 'BLOCKED', 1,    TIMESTAMP '2026-09-22 11:10:00'),
-    (5, 1, 5, 1, 3, 'PASS',    3,    TIMESTAMP '2026-09-23 09:30:00'),
-    (6, 1, 6, 1, 3, 'PASS',    3,    TIMESTAMP '2026-09-23 09:40:00'),
-    (7, 1, 7, 1, 1, 'NOT_RUN', NULL, NULL),
-    (8, 1, 8, 1, 1, 'NOT_RUN', NULL, NULL),
-    (9, 1, 9, 1, 1, 'NOT_RUN', NULL, NULL);
+INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, tc_version, assignee_id, result, comment, executed_by, executed_at) VALUES
+    (1, 1, 1, 1, 1, 'PASS',    NULL, 1,    TIMESTAMP '2026-09-22 10:15:00'),
+    (2, 1, 2, 1, 1, 'PASS',    NULL, 1,    TIMESTAMP '2026-09-22 10:20:00'),
+    (3, 1, 3, 1, 1, 'FAIL',    '3,000,000원 입력 시 가입이 거부됨. 결함 등록함', 1,    TIMESTAMP '2026-09-22 11:00:00'),
+    (4, 1, 4, 1, 1, 'BLOCKED', '3번 케이스 결함으로 인해 후속 검증 불가', 1,    TIMESTAMP '2026-09-22 11:10:00'),
+    (5, 1, 5, 1, 3, 'PASS',    NULL, 3,    TIMESTAMP '2026-09-23 09:30:00'),
+    (6, 1, 6, 1, 3, 'PASS',    NULL, 3,    TIMESTAMP '2026-09-23 09:40:00'),
+    (7, 1, 7, 1, 1, 'NOT_RUN', NULL, NULL, NULL),
+    (8, 1, 8, 1, 1, 'NOT_RUN', NULL, NULL, NULL),
+    (9, 1, 9, 1, 1, 'NOT_RUN', NULL, NULL, NULL);
 
 -- 파라미터화 TC-114: 데이터셋 행마다 개별 실행 결과 (docs/08)
-INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, dataset_id, tc_version, assignee_id, result, executed_by, executed_at) VALUES
-    (10, 1, 14, 1, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:00:00'),
-    (11, 1, 14, 2, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:05:00'),
-    (12, 1, 14, 3, 1, 1, 'FAIL', 1, TIMESTAMP '2026-09-24 10:10:00'),
-    (13, 1, 14, 4, 1, 1, 'PASS', 1, TIMESTAMP '2026-09-24 10:15:00');
+INSERT IGNORE INTO test_execution (id, cycle_id, test_case_id, dataset_id, tc_version, assignee_id, result, comment, executed_by, executed_at) VALUES
+    (10, 1, 14, 1, 1, 1, 'PASS', NULL, 1, TIMESTAMP '2026-09-24 10:00:00'),
+    (11, 1, 14, 2, 1, 1, 'PASS', NULL, 1, TIMESTAMP '2026-09-24 10:05:00'),
+    (12, 1, 14, 3, 1, 1, 'FAIL', '기존 결함(DF-0001)과 동일 증상 재현', 1, TIMESTAMP '2026-09-24 10:10:00'),
+    (13, 1, 14, 4, 1, 1, 'PASS', NULL, 1, TIMESTAMP '2026-09-24 10:15:00');
 
 INSERT IGNORE INTO test_execution_history (id, execution_id, result, comment, executed_by, executed_at) VALUES
     (1, 1, 'PASS',    NULL, 1, TIMESTAMP '2026-09-22 10:15:00'),

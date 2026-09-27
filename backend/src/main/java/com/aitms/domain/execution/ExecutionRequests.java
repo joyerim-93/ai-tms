@@ -30,10 +30,10 @@ public final class ExecutionRequests {
     public record AssignRequest(@NotEmpty List<Long> executionIds, Long assigneeId) {
     }
 
-    public record ResultRequest(@NotNull ExecutionResult result, @Size(max = 2000) String comment) {
-    }
-
-    /** 임시저장 — 결과는 아직 선택 전이어도(코멘트만) 저장 가능 */
-    public record DraftRequest(ExecutionResult result, @Size(max = 2000) String comment) {
+    /**
+     * 자동저장(PATCH) — result/comment 모두 선택. result 생략 시 기존 확정 결과를 유지, comment 생략(null)이면 빈 값으로 저장.
+     * result가 실제로 바뀔 때만 이력(test_execution_history)에 한 줄 남고, 코멘트만 바뀌면 현재 값만 갱신(이력 스팸 방지).
+     */
+    public record PatchRequest(ExecutionResult result, @Size(max = 2000) String comment) {
     }
 }

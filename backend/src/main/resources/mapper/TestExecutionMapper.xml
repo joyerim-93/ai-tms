@@ -15,10 +15,7 @@
                d.row_label               AS dataset_label,
                d.param_values            AS dataset_params,
                d.expected_result_override AS dataset_expected,
-               d.sort_order              AS dataset_order,
-               (SELECT h.comment FROM test_execution_history h
-                 WHERE h.execution_id = e.id
-                 ORDER BY h.executed_at DESC, h.id DESC LIMIT 1) AS last_comment
+               d.sort_order              AS dataset_order
           FROM test_execution e
           JOIN test_case tc ON tc.id = e.test_case_id
           LEFT JOIN test_case_dataset d ON d.id = e.dataset_id
@@ -49,8 +46,6 @@
                tc.is_parameterized AS tc_parameterized, d.row_label AS dataset_label,
                d.param_values AS dataset_params, d.expected_result_override AS dataset_expected,
                d.sort_order AS dataset_order,
-               (SELECT h.comment FROM test_execution_history h
-                 WHERE h.execution_id = e.id ORDER BY h.executed_at DESC, h.id DESC LIMIT 1) AS last_comment,
                c.cycle_no, c.name AS cycle_name
           FROM test_execution e
           JOIN test_cycle c ON c.id = e.cycle_id
@@ -105,22 +100,11 @@
 
     <update id="updateResult">
         UPDATE test_execution
-           SET result        = #{result},
-               executed_by   = #{executedBy},
-               executed_at   = CURRENT_TIMESTAMP,
-               is_draft      = FALSE,
-               draft_result  = NULL,
-               draft_comment = NULL,
-               updated_at    = CURRENT_TIMESTAMP
-         WHERE id = #{id}
-    </update>
-
-    <update id="updateDraft">
-        UPDATE test_execution
-           SET is_draft      = TRUE,
-               draft_result  = #{result},
-               draft_comment = #{comment},
-               updated_at    = CURRENT_TIMESTAMP
+           SET result      = #{result},
+               comment     = #{comment},
+               executed_by = #{executedBy},
+               executed_at = CURRENT_TIMESTAMP,
+               updated_at  = CURRENT_TIMESTAMP
          WHERE id = #{id}
     </update>
 

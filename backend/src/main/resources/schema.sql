@@ -171,12 +171,9 @@ CREATE TABLE IF NOT EXISTS test_execution (
     tc_version   INT          NOT NULL,               -- 등록 시점 TC 버전 스냅샷
     assignee_id  BIGINT       REFERENCES users (id),
     result       VARCHAR(10)  NOT NULL DEFAULT 'NOT_RUN' CHECK (result IN ('PASS', 'FAIL', 'BLOCKED', 'NOT_RUN')),
+    comment      VARCHAR(2000),                       -- 현재 코멘트(자동저장) — 이력의 comment 는 그 시점 스냅샷
     executed_by  BIGINT       REFERENCES users (id),  -- 마지막 수행자
     executed_at  TIMESTAMP,                           -- 마지막 수행 시각
-    -- 임시저장(확정 전) — result/executed_by/executed_at·이력에는 반영되지 않고 패널 재진입 시 이어서 입력하도록 복원
-    is_draft       BOOLEAN     NOT NULL DEFAULT FALSE,
-    draft_result   VARCHAR(10) CHECK (draft_result IN ('PASS', 'FAIL', 'BLOCKED', 'NOT_RUN')),
-    draft_comment  VARCHAR(2000),
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (cycle_id, test_case_id, dataset_id)       -- dataset_id NULL 중복은 등록 SQL(NOT EXISTS)에서 방지

@@ -155,12 +155,12 @@ function toggleGroup(children) {
   selected.value = next
 }
 
-// ── 결과 셀 인라인 수정 (코멘트 없이 결과만 기록 → 이력 1건)
+// ── 결과 셀 인라인 수정 (기존 코멘트는 유지한 채 결과만 변경 → 실제로 바뀌면 이력 1건)
 const savingId = ref(null)
 async function changeResult(e, result) {
   savingId.value = e.id
   await run(async () => {
-    await executionApi.record(e.id, result, '')
+    await executionApi.patch(e.id, { result, comment: e.comment })
     await reload()
   })
   savingId.value = null
@@ -282,7 +282,7 @@ onMounted(async () => {
               </td>
               <td>{{ g.exec.assigneeName ?? '-' }}</td>
               <td class="muted small">{{ g.exec.executedAt ? formatDateTime(g.exec.executedAt) : '-' }}</td>
-              <td class="comment small" :title="g.exec.lastComment ?? ''">{{ g.exec.lastComment ?? '' }}</td>
+              <td class="comment small" :title="g.exec.comment ?? ''">{{ g.exec.comment ?? '' }}</td>
               <td @click.stop>
                 <button v-if="!closed && !g.exec.executedAt" class="btn btn-sm btn-danger" title="차수에서 제외" @click="removeExecution(g.exec)">✕</button>
               </td>
@@ -340,7 +340,7 @@ onMounted(async () => {
                   </td>
                   <td>{{ c.assigneeName ?? '-' }}</td>
                   <td class="muted small">{{ c.executedAt ? formatDateTime(c.executedAt) : '-' }}</td>
-                  <td class="comment small" :title="c.lastComment ?? ''">{{ c.lastComment ?? '' }}</td>
+                  <td class="comment small" :title="c.comment ?? ''">{{ c.comment ?? '' }}</td>
                   <td @click.stop>
                     <button v-if="!closed && !c.executedAt" class="btn btn-sm btn-danger" title="차수에서 제외" @click="removeExecution(c)">✕</button>
                   </td>

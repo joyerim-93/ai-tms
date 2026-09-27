@@ -18,7 +18,6 @@ export const cycleApi = {
 export const executionApi = {
   get: (id) => http(`/executions/${id}`),
   history: (id) => http(`/executions/${id}/history`),
-  record: (id, result, comment) => http(`/executions/${id}/results`, { method: 'POST', body: { result, comment } }),
-  // 임시저장 — result 는 아직 선택 전(null)이어도 코멘트만 저장 가능. 확정 결과·이력에는 반영되지 않음
-  saveDraft: (id, result, comment) => http(`/executions/${id}/draft`, { method: 'POST', body: { result, comment } }),
+  // 자동저장 — result/comment 모두 선택. result 생략 시 기존 확정 결과 유지, 실제로 바뀔 때만 이력에 기록됨
+  patch: (id, body) => http(`/executions/${id}`, { method: 'PATCH', body }),
 }

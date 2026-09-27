@@ -94,7 +94,7 @@ public class TestExecutionExcelService {
                 row.createCell(col++).setCellValue(resultLabel(e.getResult()));
                 row.createCell(col++).setCellValue(e.getAssigneeName() == null ? "" : e.getAssigneeName());
                 row.createCell(col++).setCellValue(e.getExecutedAt() == null ? "" : e.getExecutedAt().format(DATETIME));
-                row.createCell(col).setCellValue(e.getLastComment() == null ? "" : e.getLastComment());
+                row.createCell(col).setCellValue(e.getComment() == null ? "" : e.getComment());
             }
 
             wb.write(out);

@@ -32,11 +32,8 @@ public interface TestExecutionMapper {
 
     int updateResult(@Param("id") Long id,
                      @Param("result") ExecutionResult result,
+                     @Param("comment") String comment,
                      @Param("executedBy") Long executedBy);
-
-    int updateDraft(@Param("id") Long id,
-                    @Param("result") ExecutionResult result,
-                    @Param("comment") String comment);
 
     int delete(Long id);
 

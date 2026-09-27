@@ -17,8 +17,7 @@ import com.aitms.common.Priority;
 import com.aitms.domain.execution.ExecutionRequests.AddExecutionsRequest;
 import com.aitms.domain.execution.ExecutionRequests.AssignRequest;
 import com.aitms.domain.execution.ExecutionRequests.CycleRequest;
-import com.aitms.domain.execution.ExecutionRequests.DraftRequest;
-import com.aitms.domain.execution.ExecutionRequests.ResultRequest;
+import com.aitms.domain.execution.ExecutionRequests.PatchRequest;
 import com.aitms.domain.testcase.TestCaseRequest;
 import com.aitms.domain.testcase.TestCaseService;
 import com.aitms.domain.testcase.TestCaseStatus;
@@ -91,10 +90,11 @@ class TestExecutionServiceTest {
         executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
         Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
 
-        executionService.record(execId, new ResultRequest(ExecutionResult.FAIL, "버튼 미동작"));
-        TestExecution exec = executionService.record(execId, new ResultRequest(ExecutionResult.PASS, null));
+        executionService.patch(execId, new PatchRequest(ExecutionResult.FAIL, "버튼 미동작"));
+        TestExecution exec = executionService.patch(execId, new PatchRequest(ExecutionResult.PASS, null));
 
         assertThat(exec.getResult()).isEqualTo(ExecutionResult.PASS);
+        assertThat(exec.getComment()).isNull(); // 마지막 patch가 null(=공백) 코멘트
         assertThat(exec.getExecutedByName()).isEqualTo("김큐에이");
         assertThat(executionService.history(execId)).extracting(ExecutionHistory::getResult)
                 .containsExactly(ExecutionResult.PASS, ExecutionResult.FAIL);
@@ -109,6 +109,32 @@ class TestExecutionServiceTest {
     }
 
     @Test
+    void 자동저장_결과가_안_바뀌면_코멘트만_갱신되고_이력은_안_쌓인다() {
+        TestCycle cycle = createCycle("1차");
+        executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
+        Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
+
+        // 결과 없이 코멘트만(디바운스 첫 틱: 아직 결과 선택 전) — NOT_RUN 그대로, 이력 없음
+        TestExecution first = executionService.patch(execId, new PatchRequest(null, "작성 중"));
+        assertThat(first.getResult()).isEqualTo(ExecutionResult.NOT_RUN);
+        assertThat(first.getComment()).isEqualTo("작성 중");
+        assertThat(executionService.history(execId)).isEmpty();
+
+        // 코멘트만 다시 수정(결과는 그대로 NOT_RUN) — 여전히 이력 없음, 현재 값만 갱신
+        TestExecution second = executionService.patch(execId, new PatchRequest(null, "다시 확인"));
+        assertThat(second.getComment()).isEqualTo("다시 확인");
+        assertThat(executionService.history(execId)).isEmpty();
+
+        // 이제 결과가 실제로 바뀜 — 이 시점에야 이력 1건
+        executionService.patch(execId, new PatchRequest(ExecutionResult.FAIL, "재현됨"));
+        assertThat(executionService.history(execId)).hasSize(1);
+
+        // 같은 결과로 다시 patch(코멘트만 수정) — 이력은 추가되지 않음
+        executionService.patch(execId, new PatchRequest(ExecutionResult.FAIL, "재현됨, 스크린샷 첨부"));
+        assertThat(executionService.history(execId)).hasSize(1);
+    }
+
+    @Test
     void 담당자를_일괄지정하고_결과로_필터링한다() {
         TestCycle cycle = createCycle("1차");
         executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1, tc2), null));
@@ -116,7 +142,7 @@ class TestExecutionServiceTest {
                 .map(TestExecution::getId).toList();
 
         assertThat(executionService.assign(cycle.getId(), new AssignRequest(ids, 3L))).isEqualTo(2);
-        executionService.record(ids.get(0), new ResultRequest(ExecutionResult.BLOCKED, null));
+        executionService.patch(ids.get(0), new PatchRequest(ExecutionResult.BLOCKED, null));
 
         ExecutionSearch search = new ExecutionSearch();
         search.setAssigneeId(3L);
@@ -131,7 +157,7 @@ class TestExecutionServiceTest {
         Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
         cycleService.update(cycle.getId(), new CycleRequest(null, "1차", null, null, CycleStatus.CLOSED));
 
-        assertThatThrownBy(() -> executionService.record(execId, new ResultRequest(ExecutionResult.PASS, null)))
+        assertThatThrownBy(() -> executionService.patch(execId, new PatchRequest(ExecutionResult.PASS, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("종료");
     }
@@ -144,40 +170,4 @@ class TestExecutionServiceTest {
         assertThat(executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1, tc2, 1L), null))).isEqualTo(1);
     }
 
-    @Test
-    void 임시저장은_확정_결과와_이력에_영향을_주지_않고_재진입시_복원된다() {
-        TestCycle cycle = createCycle("1차");
-        executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
-        Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
-
-        TestExecution draft = executionService.saveDraft(execId, new DraftRequest(ExecutionResult.FAIL, "재현 확인 중"));
-        assertThat(draft.getIsDraft()).isTrue();
-        assertThat(draft.getDraftResult()).isEqualTo(ExecutionResult.FAIL);
-        assertThat(draft.getDraftComment()).isEqualTo("재현 확인 중");
-        assertThat(draft.getResult()).isEqualTo(ExecutionResult.NOT_RUN);   // 확정 결과는 그대로
-        assertThat(executionService.history(execId)).isEmpty();            // 이력에도 안 남음
-
-        // 코멘트만 있고 결과 미선택인 임시저장도 가능, 덮어쓰기됨
-        TestExecution draft2 = executionService.saveDraft(execId, new DraftRequest(null, "  "));
-        assertThat(draft2.getDraftResult()).isNull();
-        assertThat(draft2.getDraftComment()).isNull(); // 공백은 null 처리
-
-        // 확정 저장하면 임시저장 값은 지워짐
-        TestExecution recorded = executionService.record(execId, new ResultRequest(ExecutionResult.PASS, "최종 확인"));
-        assertThat(recorded.getIsDraft()).isFalse();
-        assertThat(recorded.getDraftResult()).isNull();
-        assertThat(recorded.getDraftComment()).isNull();
-        assertThat(recorded.getResult()).isEqualTo(ExecutionResult.PASS);
-    }
-
-    @Test
-    void 종료된_차수는_임시저장도_막는다() {
-        TestCycle cycle = createCycle("1차");
-        executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
-        Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
-        cycleService.update(cycle.getId(), new CycleRequest(null, cycle.getName(), null, null, CycleStatus.CLOSED));
-
-        assertThatThrownBy(() -> executionService.saveDraft(execId, new DraftRequest(ExecutionResult.FAIL, "x")))
-                .isInstanceOf(ApiException.class);
-    }
 }

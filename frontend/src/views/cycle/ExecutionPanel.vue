@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { executionApi } from '@/api/cycles'
@@ -13,26 +13,35 @@ import DatasetTable from '@/components/DatasetTable.vue'
 import AttachmentPanel from '@/components/AttachmentPanel.vue'
 import { substitute } from '@/utils/params'
 
-// 우측 슬라이드 패널: TC 절차 확인 + 결과 입력 + 수행 이력
+// 우측 슬라이드 패널: TC 절차 확인 + 결과 입력(자동저장) + 수행 이력
 const props = defineProps({
   executionId: { type: Number, required: true },
   readonly: { type: Boolean, default: false }, // 종료된 차수
 })
 const emit = defineEmits(['close', 'recorded'])
 
+const DEBOUNCE_MS = 700
+const RETRY_BASE_MS = 3000
+const RETRY_MAX_MS = 15000
+
 const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
-const selectedResult = ref(null) // 결과 칩은 선택만 함(즉시 저장 안 함) — '저장'/'임시저장' 버튼으로 확정
+const selectedResult = ref(null) // 항상 현재(마지막 저장된) 결과를 반영 — 값이 바뀌면 자동저장
 const auth = useAuthStore() // 실행자 = 로그인 사용자(서버가 기록)
 const defects = ref([]) // 이 수행 항목에 연결된 이슈
-const saving = ref(false)
-const draftSaving = ref(false)
-const error = ref('')
+const error = ref('') // 목록 로딩 등 일반 오류
 const router = useRouter()
 
-async function load() {
+// ── 자동저장 상태: idle(편집 전) | saving | saved | error
+const saveStatus = ref('idle')
+let ready = false // 최초 로드가 끝나기 전까지는 프리필로 인한 watch를 무시
+let debounceTimer = null
+let retryTimer = null
+let retryDelay = RETRY_BASE_MS
+
+async function fetchAll() {
   exec.value = await executionApi.get(props.executionId)
   const [testCase, hist, linked] = await Promise.all([
     testCaseApi.get(exec.value.testCaseId),
@@ -51,49 +60,56 @@ const stepText = (text) =>
 const canReportDefect = () => ['FAIL', 'BLOCKED'].includes(exec.value?.result)
 const reportDefect = () => router.push(`/defects/new?executionId=${props.executionId}`)
 
-const selectResult = (key) => (selectedResult.value = selectedResult.value === key ? null : key)
+const selectResult = (key) => (selectedResult.value = key)
 
-async function save() {
-  if (!selectedResult.value) return
-  saving.value = true
-  error.value = ''
+function scheduleSave() {
+  if (!ready || props.readonly) return
+  clearTimeout(debounceTimer)
+  clearTimeout(retryTimer)
+  saveStatus.value = 'saving'
+  debounceTimer = setTimeout(doSave, DEBOUNCE_MS)
+}
+
+async function doSave() {
+  saveStatus.value = 'saving'
   try {
-    await executionApi.record(props.executionId, selectedResult.value, comment.value)
-    comment.value = ''
-    selectedResult.value = null
-    await load()
+    await executionApi.patch(props.executionId, { result: selectedResult.value, comment: comment.value })
+    await fetchAll() // 이력·연결 이슈 등 화면을 갱신 (comment/selectedResult 는 건드리지 않음 — 편집 중 값 보존)
+    saveStatus.value = 'saved'
+    retryDelay = RETRY_BASE_MS
     emit('recorded')
   } catch (e) {
+    saveStatus.value = 'error'
     error.value = e.message
-  } finally {
-    saving.value = false
+    retryTimer = setTimeout(doSave, retryDelay)
+    retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS)
   }
 }
 
-// 확정이 아닌 중간 상태 저장 — 결과·이력에는 반영되지 않고, 재진입(onMounted) 시 이 값으로 복원됨
-async function saveDraftAction() {
-  draftSaving.value = true
-  error.value = ''
-  try {
-    await executionApi.saveDraft(props.executionId, selectedResult.value, comment.value)
-    await load()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    draftSaving.value = false
-  }
+function retryNow() {
+  clearTimeout(retryTimer)
+  retryDelay = RETRY_BASE_MS
+  doSave()
 }
+
+watch([selectedResult, comment], scheduleSave)
 
 onMounted(async () => {
   try {
-    await load()
-    if (exec.value.isDraft) {
-      selectedResult.value = exec.value.draftResult
-      comment.value = exec.value.draftComment ?? ''
-    }
+    await fetchAll()
+    selectedResult.value = exec.value.result
+    comment.value = exec.value.comment ?? ''
+    await nextTick() // 위 두 대입으로 예약된 watch 콜백이 (ready=false인 채로) 먼저 실행되도록 한 틱 대기
   } catch (e) {
     error.value = e.message
+  } finally {
+    ready = true
   }
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(debounceTimer)
+  clearTimeout(retryTimer)
 })
 </script>
 
@@ -107,14 +123,11 @@ onMounted(async () => {
           <div v-if="exec.datasetId" class="dataset-label">🔢 {{ exec.datasetLabel }}</div>
         </div>
         <div class="header-actions">
-          <template v-if="!readonly && exec && tc">
-            <button class="btn btn-sm" :disabled="draftSaving || saving" @click="saveDraftAction">
-              {{ draftSaving ? '저장 중…' : '임시저장' }}
-            </button>
-            <button class="btn btn-sm btn-primary" :disabled="!selectedResult || saving || draftSaving" @click="save">
-              {{ saving ? '저장 중…' : '저장' }}
-            </button>
-          </template>
+          <span v-if="!readonly && saveStatus !== 'idle'" class="save-status" :class="saveStatus">
+            <span v-if="saveStatus === 'saving'">저장 중…</span>
+            <span v-else-if="saveStatus === 'saved'">✓ 저장됨</span>
+            <button v-else type="button" class="retry" @click="retryNow">⚠ 저장 실패, 재시도</button>
+          </span>
           <button class="btn btn-sm" @click="emit('close')">✕</button>
         </div>
       </header>
@@ -125,7 +138,6 @@ onMounted(async () => {
           <div class="meta">
             <PriorityChip :priority="tc.priority" />
             <StatusBadge :status="exec.result" />
-            <span v-if="exec.isDraft" class="chip chip-medium" title="임시저장된 코멘트/결과가 있습니다">📝 임시저장됨</span>
             <span class="muted">담당 {{ exec.assigneeName ?? '미지정' }}</span>
           </div>
           <p v-if="exec.tcVersion !== tc.version" class="notice">
@@ -177,13 +189,11 @@ onMounted(async () => {
                 type="button"
                 class="btn result-btn"
                 :class="[`result-${key.toLowerCase()}`, { selected: selectedResult === key }]"
-                :disabled="saving || draftSaving"
                 @click="selectResult(key)"
               >
                 {{ label }}
               </button>
             </div>
-            <p class="muted small hint">결과를 선택한 뒤 위의 ‘저장’으로 확정하거나, ‘임시저장’으로 나중에 이어서 입력하세요.</p>
           </section>
           <section v-else class="block">
             <p class="muted">종료된 차수는 결과를 입력할 수 없습니다.</p>
@@ -346,8 +356,29 @@ onMounted(async () => {
 .result-btn.selected {
   border-color: currentColor;
 }
-.hint {
-  margin: var(--space-2) 0 0;
+.save-status {
+  align-self: center;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.save-status.saving,
+.save-status.saved {
+  color: var(--text-secondary);
+}
+.save-status.saved {
+  color: var(--result-success-text);
+}
+.retry {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--result-fail-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.retry:hover {
+  text-decoration: underline;
 }
 .history {
   margin: 0;

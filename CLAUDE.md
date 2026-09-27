@@ -79,7 +79,7 @@ ai-tms/
 - **test_cycle**(차수: project_id, cycle_no, name, 기간, status `PLANNED|IN_PROGRESS|CLOSED`)
 - **test_execution**(cycle_id, test_case_id **UNIQUE**, tc_version, assignee_id, 최종 result `PASS|FAIL|BLOCKED|NOT_RUN`)
 - **test_execution_history**(execution_id, result, executed_by, executed_at, comment) — 차수×TC별 모든 수행 기록
-- **test_execution**.`is_draft`/`draft_result`/`draft_comment` — 임시저장(확정 전) 값. 확정 결과·이력과는 분리, 저장(record) 시 초기화
+- **test_execution**.`comment` — 현재 코멘트(자동저장되는 실제 컬럼). 이력(`test_execution_history`)의 comment는 그 결과 전환 시점의 스냅샷
 - **defect**(project_id, defect_code, severity, priority, status `NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED|REJECTED`, reporter_id, assignee_id, execution_id nullable)
 - **defect_comment**(defect_id, author_id, content, status_from/to)
 - **test_execution_attachment**(execution_id, file_name, file_path, content_type, file_size, uploaded_by, uploaded_at) / **defect_attachment**(defect_id, …동일) — 증빙 첨부. 파일은 디스크, DB엔 업로드 루트 기준 **상대 경로**만
@@ -165,10 +165,9 @@ ai-tms/
 | POST | `/api/cycles/{id}/executions` `{testCaseIds, assigneeId}` | TC 등록 (ACTIVE·미등록만, `{added}` 반환) |
 | PUT | `/api/cycles/{id}/executions/assignee` `{executionIds, assigneeId}` | 담당자 일괄 지정 (null=해제) |
 | DELETE | `/api/cycles/{id}/executions/{executionId}` | 차수에서 제외 (이력 있으면 409) |
-| GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목(is_draft/draftResult/draftComment 포함) / 이력(최신순) |
-| POST | `/api/executions/{id}/draft` `{result, comment}` | **임시저장** — result는 미선택(null) 허용, 확정 결과·이력에는 반영 안 됨 |
+| GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목(현재 `comment` 포함) / 이력(최신순, 결과가 실제로 바뀐 시점마다 그때의 comment 스냅샷) |
+| PATCH | `/api/executions/{id}` `{result, comment}` | **자동저장** — 둘 다 선택, result 생략 시 기존 결과 유지. result가 실제로 바뀔 때만 이력 1건 추가, 코멘트만 바뀌면 현재 값만 갱신(이력 스팸 방지) |
 | GET | `/api/users` | 가입(비밀번호 있음)·활성 사용자 전체 `{id, displayName}`, 이름순 — 담당자 자유입력 콤보(`UserCombo`)용, 로그인만 하면 조회 가능(권한 체계 없음) |
-| POST | `/api/executions/{id}/results` `{result, comment}` | 결과 입력 → 최종결과 갱신 + 이력 추가 |
 | GET | `/api/cycles/{id}/export` | 엑셀 다운로드(이 차수만) — TC Key\|제목\|데이터셋 행\|결과\|담당자\|실행일시\|코멘트 |
 | GET | `/api/cycles/export?projectId=` | 엑셀 다운로드(전체 차수) — 위 컬럼 맨 앞에 '차수' 컬럼 추가, 프로젝트의 모든 차수 포함 |
 
@@ -244,7 +243,7 @@ ai-tms/
 
 ### 테스트수행 규칙
 - 결과 입력 시 수행자=CurrentUser, 차수가 PLANNED면 IN_PROGRESS로 자동 전환.
-- **임시저장**: `ExecutionPanel`의 결과 칩은 클릭해도 즉시 저장되지 않고 선택만 됨 — 패널 상단 '임시저장'(결과 미선택도 가능, 코멘트만도 됨)/'저장'(결과 필수, 기존 `record` 그대로) 버튼으로 확정. 임시저장은 `is_draft`만 갱신하고 이력에 안 남으며, 패널 재진입(`onMounted`) 시 `draftResult`/`draftComment`로 복원. 확정 저장하면 draft 필드는 서버가 비움. 차수 상세 테이블의 `ResultSelect`(행 인라인 즉시 변경)는 이 흐름과 별개 — 그대로 즉시 확정.
+- **자동저장(2026-09-27, 임시저장 폐지 후 단순화)**: `ExecutionPanel`의 결과 칩·코멘트는 값이 바뀌면 0.7초 디바운스 후 `PATCH /api/executions/{id}`로 즉시 확정 저장(더 이상 '저장'/'임시저장' 버튼 없음). `test_execution.comment`는 실제 컬럼(자동저장되는 현재 값), `is_draft`/`draft_result`/`draft_comment`는 완전히 제거함 — result가 실제로 바뀔 때만 이력에 한 줄 남고, 코멘트만 편집하면 이력은 안 쌓임(디바운스마다 스팸되지 않도록). 패널 우상단에 작은 상태 표시만 남음: `저장 중…` → `✓ 저장됨`, 실패 시 `⚠ 저장 실패, 재시도`(클릭 시 즉시 재시도) + 3초→6초→…→최대 15초 백오프로 자동 재시도. 패널을 열면 항상 현재 저장된 결과/코멘트가 미리 채워짐(더 이상 '선택 전' 상태 없음). 차수 상세 테이블의 `ResultSelect`(행 인라인 즉시 변경)도 같은 PATCH를 쓰되 기존 코멘트를 그대로 보내 보존.
 - **담당자 선택**: 프로젝트 멤버로 한정하지 않고 `GET /api/users`(가입 사용자 전체)를 `UserCombo`(선택+자유입력, 이름 정확히 일치해야 매핑됨)로 노출. TC 추가 팝업(`TcPickerModal`)·차수 상세 일괄 담당자 지정에 적용. (결함 담당자는 아직 프로젝트 멤버 select — 변경 안 함)
 - CLOSED 차수는 TC 등록·담당 지정·제외·결과 입력 모두 409 (상태를 되돌리면 가능).
 - 진행률 = (전체 − 미수행) / 전체 (`labels.js progressRate`).
@@ -315,7 +314,8 @@ npm run build
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ **회원가입·시드계정 3171613**, CORS 자격증명, 헤더 좌우 그룹 분리(로고+메뉴 / 프로젝트·테마·사용자명) + 사용자명 클릭 로그아웃 드롭다운
 - ✅ **다크모드**(ThemeToggle, localStorage+OS 설정) + **StatCard 상단 요약**(테스트케이스/테스트수행/이슈 3화면)
-- ✅ **프로젝트 생성 위치 이동**(헤더 ProjectSelector 드롭다운) / **담당자 자유입력 콤보**(GET /api/users, UserCombo) / **테스트수행 임시저장**(is_draft, 결과 칩 선택→저장·임시저장 버튼)
+- ✅ **프로젝트 생성 위치 이동**(헤더 ProjectSelector 드롭다운) / **담당자 자유입력 콤보**(GET /api/users, UserCombo)
+- ✅ **테스트수행 자동저장**(디바운스 PATCH, 상태 표시·재시도, is_draft 폐지 후 단순화) — 테스트 106개
 - ✅ **폴더 삭제**(직속 내용 상위로 승격) / **엑셀 아이콘** / **테스트수행 결과 엑셀 다운로드**(이 차수만·전체 차수)
 - ✅ **'공통 테스트케이스' 마스터 프로젝트 시드**(프로젝트 3, 폴더 7개·TC 27건 — 은행권 공통/회귀 테스트 템플릿, '가져오기'로 재사용)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)

@@ -19,10 +19,8 @@ public class TestExecution {
     private Long assigneeId;
     private ExecutionResult result;
     private Long executedBy;
+    private String comment;        // 현재 코멘트 — 편집 중 자동저장(디바운스)되는 실제 컬럼
     private LocalDateTime executedAt;
-    private Boolean isDraft;
-    private ExecutionResult draftResult;
-    private String draftComment;
 
     // 조인 컬럼
     private String tcCode;
@@ -38,7 +36,6 @@ public class TestExecution {
     private String datasetParams;      // {"amount": 9999} — {변수} 치환은 프론트
     private String datasetExpected;    // {expected} 치환값
     private Integer datasetOrder;
-    private String lastComment;        // 최근 결과 입력 코멘트
     private Integer cycleNo;           // 전체 차수 엑셀 내보내기용
     private String cycleName;
 }
