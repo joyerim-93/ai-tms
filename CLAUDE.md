@@ -253,6 +253,13 @@ ai-tms/
 - API prefix `/api`. enum은 DB에 문자열로 저장.
 - 커밋 메시지: `type(scope): 한글 요약` (feat/fix/chore/refactor/docs).
 
+## 배포 (Render.com, 단일 jar)
+- 개발은 지금처럼 backend/frontend 완전 분리. **배포용 빌드만** 루트 `Dockerfile`(멀티스테이지)로 프론트를 빌드해 `backend/src/main/resources/static`에 넣고 백엔드와 함께 jar 하나로 패키징 — 같은 origin이라 CORS/쿠키 문제가 없어짐. 프론트 `http.js`는 원래 `window.location.origin` 기준 상대경로(`/api/...`)라 이 구조에 맞추기 위한 프론트 코드 수정은 필요 없었음.
+- `server.port: ${PORT:8080}`(Render가 PORT 지정), `DB_PATH` 환경변수로 H2 파일 경로 오버라이드(기본 로컬 `./data/aitms`, prod 프로필 기본 `/app/data/aitms` — 나중에 영구 디스크를 붙이면 이 값만 그 마운트 경로로 바꾸면 됨, 코드 변경 불필요).
+- `application-prod.yml`(`SPRING_PROFILES_ACTIVE=prod`, Dockerfile 기본값): H2 콘솔 비활성화, `server.forward-headers-strategy: framework`(Render가 TLS를 자기 프록시에서 종료하므로 이게 있어야 `X-Forwarded-Proto`로 요청을 보안 연결로 인식해 세션/CSRF 쿠키에 `Secure`가 정상적으로 붙음), 세션 쿠키 `secure: true`.
+- **SPA 라우팅 + 보안 정책 조정(단일 jar 특유의 이슈)**: Vue Router가 history 모드라 `/cycles/1` 같은 경로를 새로고침하면 정적 파일이 없어 404가 남 → `SpaForwardController`(`com.aitms.config`)가 확장자 없는 요청을 전부 `forward:/index.html`로 돌림. 이걸 쓰려면 `SecurityConfig`의 기본 정책을 "명시 안 된 경로는 인증 필요"에서 **"`/api/**`만 인증 필요, 나머지(정적 SPA 껍데기)는 공개"**로 뒤집어야 함(안 그러면 로그인 페이지 자체가 401로 막혀 아무도 로그인 못 함) — 실제 화면 보호는 프론트 라우터 가드가 담당.
+- 로컬 확인(이 환경엔 Docker가 없어 `docker build`는 못 돌려봄 — Dockerfile과 동일한 단계를 수동으로 재현해 검증함): `npm run build` → dist를 `backend/src/main/resources/static`에 복사 → `./gradlew bootJar` → `SPRING_PROFILES_ACTIVE=prod PORT=8090 DB_PATH=... java -jar` 로 기동 → `/`·`/cycles/1`(둘 다 index.html)·정적 JS·로그인·로그인 후 `/api/projects`·`/h2-console/`(401) 전부 한 포트에서 정상 확인. **실제 `docker build`/`docker run` 자체는 미검증** — Render 배포 시(또는 Docker가 있는 환경에서) 한 번 더 확인 필요.
+
 ## 실행
 ```bash
 # backend (JDK 21 필요 — 시스템 기본이 24면 JAVA_HOME 지정)

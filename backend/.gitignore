@@ -38,3 +38,6 @@ out/
 
 ### H2 DB files ###
 data/
+
+### 배포용 빌드 산출물 — Dockerfile이 프론트 dist를 여기로 복사(이미지 안에서만, 로컬엔 원래 안 생김). 안전장치로 커밋 방지 ###
+src/main/resources/static/*

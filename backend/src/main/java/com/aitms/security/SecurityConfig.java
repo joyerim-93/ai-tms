@@ -29,6 +29,9 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * 세션 기반 로그인(JSESSIONID) — SPA 는 /api/auth/login 으로 로그인.
  * CSRF: XSRF-TOKEN 쿠키 → 프론트가 X-XSRF-TOKEN 헤더로 되돌려 보냄. /api/** 는 로그인 필수, /h2-console 은 ADMIN 만.
+ * 그 외(정적 SPA 껍데기 — index.html/JS/CSS, {@link com.aitms.config.SpaForwardController}의 포워드 대상)는 공개:
+ * 실제 데이터 보호는 /api/** 인증이 하고, 화면 단위 보호는 프론트 라우터 가드가 함(단일 jar 배포 시 필요 — 로그인 페이지 자체가
+ * 인증을 요구하면 아무도 로그인할 수 없음).
  */
 @Configuration
 @EnableWebSecurity
@@ -47,7 +50,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/error").permitAll()
                         .requestMatchers("/h2-console/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
+                        .requestMatchers("/api/**").authenticated()
+                        .anyRequest().permitAll())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(l -> l

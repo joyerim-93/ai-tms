@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -106,6 +107,16 @@ class AuthTest {
         mvc.perform(get("/h2-console/")).andExpect(status().isUnauthorized());
         assertThat(login("qa.kim", PASSWORD)).isNotNull();
         mvc.perform(get("/h2-console/").session(login("qa.kim", PASSWORD))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 단일_jar_배포용_정적_SPA_경로는_로그인_없이_허용되고_index_html로_포워드된다() throws Exception {
+        // 배포 시 프론트가 resources/static 에 같이 패키징됨 — 로그인 페이지 자체가 막히면 아무도 로그인할 수 없으므로 공개돼야 함.
+        mvc.perform(get("/cycles/1"))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+        // /api/** 는 이 예외 대상이 아니라 여전히 인증 필요
+        mvc.perform(get("/api/projects")).andExpect(status().isUnauthorized());
     }
 
     @Test
