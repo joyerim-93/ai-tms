@@ -31,7 +31,7 @@ server:
 app:
   ai:
     llm:
-      enabled: true                 # false면 AI 생성(LLM) 추천을 건너뜀 (규칙기반·RAG만)
+      enabled: false                # 비용 때문에 꺼둠. true + API 키를 설정하면 AI 생성(LLM) 추천도 실행 (꺼져 있어도 규칙기반·RAG는 정상 동작)
       model: claude-opus-5
       max-cases: 5                  # 요구사항 1건당 제안할 최대 TC 수
       api-key: ${ANTHROPIC_API_KEY:}  # 비우면 SDK 기본 인증(ANTHROPIC_API_KEY 환경변수 / ant auth login 프로필) 사용

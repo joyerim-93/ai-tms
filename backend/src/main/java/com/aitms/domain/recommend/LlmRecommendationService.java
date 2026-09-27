@@ -29,6 +29,8 @@ public class LlmRecommendationService implements RecommendationEngine {
 
     private static final Logger log = LoggerFactory.getLogger(LlmRecommendationService.class);
 
+    static final String DISABLED_WARNING = "LLM 추천은 비활성화 상태입니다 (설정 app.ai.llm.enabled=false — 규칙기반·RAG 추천만 실행됨)";
+
     static final String SYSTEM = """
             당신은 금융 서비스를 다루는 시니어 QA 엔지니어입니다.
             요구사항 원문과 원자 요구사항, 그리고 이미 등록된 테스트케이스를 보고 아직 검증되지 않은 부분을 채우는 테스트케이스를 제안합니다.
@@ -59,7 +61,8 @@ public class LlmRecommendationService implements RecommendationEngine {
     @Override
     public RecommendationResult recommend(Long requirementId) {
         if (!enabled) {
-            return new RecommendationResult(List.of(), List.of());
+            // API 키/비용 없이도 규칙기반·RAG는 정상 동작 — 꺼져 있다는 사실을 결과 경고로 명확히 표시
+            return new RecommendationResult(List.of(), List.of(DISABLED_WARNING));
         }
         Requirement req = requirementMapper.findById(requirementId)
                 .orElseThrow(() -> ApiException.notFound("요구사항을 찾을 수 없습니다: " + requirementId));

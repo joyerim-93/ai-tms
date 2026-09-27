@@ -101,11 +101,11 @@ class LlmRecommendationTest {
     }
 
     @Test
-    void 비활성이면_API를_호출하지_않는다() throws Exception {
+    void 비활성이면_API를_호출하지_않고_비활성_경고를_남긴다() throws Exception {
         RecommendationResult res = engine(false, 5).recommend(1L);
 
         assertThat(res.candidates()).isEmpty();
-        assertThat(res.warnings()).isEmpty();
+        assertThat(res.warnings()).containsExactly(LlmRecommendationService.DISABLED_WARNING);
         verify(llm, never()).generate(any(), any(), any());
     }
 

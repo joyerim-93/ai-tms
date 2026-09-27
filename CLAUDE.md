@@ -217,7 +217,7 @@ ai-tms/
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
 - 규칙기반(RULE) 추천 = **파라미터화 TC 1개 + 데이터셋 N행**. `[[text]] [[unit]] [[flag]] [[bonus]]`는 생성 시점에 원자 요구사항 값으로 치환, `{value} {option} {flag} {expected}`는 단계에 남는 데이터셋 변수. 범위 값 누락·규칙 없음은 `warnings`로 반환.
 - 저장은 `RequirementService.recommend`가 담당(`TestCaseService.createDraft`), 엔진은 후보(`TcRecommendation`)만 생성. 엔진 추가 = `RecommendationEngine` 빈 추가(LLM 3-3 예정).
-- **LLM(3-3) 규칙:** 요구사항 1건당 Claude API 1회(`LlmRecommendationService`) — 원문·원자 요구사항(id/유형/범위/조건)·**이미 연결된 TC 제목**(중복 방지)을 주고, 규칙/RAG가 놓치기 쉬운 교차 조합·예외 흐름·정합성 TC를 최대 `app.ai.llm.max-cases`(5)건 제안받음. 응답은 **구조화 출력**(`LlmProposal` 레코드 → JSON 스키마 자동 생성)이라 파싱 실패가 없음. 검증: 원자 id가 목록에 없거나 제목/단계 누락·길이 초과인 제안은 버리고 경고. 저장은 source=LLM·DRAFT·비파라미터화·미분류·해당 원자 요구사항에 링크(승인 후 사용). 모델 `app.ai.llm.model`(기본 `claude-opus-5`), 인증은 `app.ai.llm.api-key` 또는 SDK 기본(`ANTHROPIC_API_KEY` 환경변수 / `ant auth login`). **호출 실패·인증 없음·거절·잘림은 예외가 아니라 경고**로 남기고 규칙/RAG 결과는 유지. `app.ai.llm.enabled=false`면 호출 안 함(테스트는 gradle `systemProperty`로 꺼두고 가짜 `LlmClient` 사용). 프롬프트 캐싱·거절 fallback 미적용.
+- **LLM(3-3) 규칙:** 요구사항 1건당 Claude API 1회(`LlmRecommendationService`) — 원문·원자 요구사항(id/유형/범위/조건)·**이미 연결된 TC 제목**(중복 방지)을 주고, 규칙/RAG가 놓치기 쉬운 교차 조합·예외 흐름·정합성 TC를 최대 `app.ai.llm.max-cases`(5)건 제안받음. 응답은 **구조화 출력**(`LlmProposal` 레코드 → JSON 스키마 자동 생성)이라 파싱 실패가 없음. 검증: 원자 id가 목록에 없거나 제목/단계 누락·길이 초과인 제안은 버리고 경고. 저장은 source=LLM·DRAFT·비파라미터화·미분류·해당 원자 요구사항에 링크(승인 후 사용). 모델 `app.ai.llm.model`(기본 `claude-opus-5`), 인증은 `app.ai.llm.api-key` 또는 SDK 기본(`ANTHROPIC_API_KEY` 환경변수 / `ant auth login`). **호출 실패·인증 없음·거절·잘림은 예외가 아니라 경고**로 남기고 규칙/RAG 결과는 유지. **기본값 `app.ai.llm.enabled: false`(비용 때문에 꺼둠, 2026-09-27 결정)** — 꺼져 있으면 API를 호출하지 않고 결과 경고에 'LLM 추천은 비활성화 상태입니다 (설정 app.ai.llm.enabled=false …)'를 표시하며 규칙기반·RAG는 API 키 없이 정상 동작. 켜려면 `enabled: true` + 키 설정(테스트는 gradle `systemProperty`로 꺼두고 가짜 `LlmClient` 사용). 프롬프트 캐싱·거절 fallback 미적용.
 - **RAG(3-2) 규칙:** 검색 대상 = **현재 프로젝트를 제외한** 전체 프로젝트의 APPROVED·ACTIVE TC. 점수 = max(원자 텍스트↔TC 제목·모듈·태그, ↔TC가 검증하는 원자 요구사항 텍스트)의 글자 bigram Dice + 같은 요구사항 유형 +0.1, 임계 0.3 이상, 원자 요구사항당 상위 3건. 같은 원본 TC가 여러 원자에 걸리면 가장 유사한 원자 하나에만. 채택 시 원본의 단계·데이터셋을 복사한 DRAFT(source=RAG, origin_project_id=원본 프로젝트)로 저장하고 링크는 현재 원자 요구사항에 건다. 임베딩 도입 시 `TcRetriever` 구현체만 교체.
 
 ### 테스트수행 규칙
@@ -273,5 +273,5 @@ npm run build
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
-- ⏳ **다음:** ai-agent(FastAPI /decompose, 임베딩 RAG 교체) 또는 다크모드/StatCard/Spring Security 등
+- ⏳ **다음(사용자 지정 순서):** 1) Spring Security 로그인 2) 다크모드 / StatCard. ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
