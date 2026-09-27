@@ -3,6 +3,7 @@ package com.aitms.domain.testcase;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,7 +55,7 @@ public class TestCaseController {
     }
 
     /** 다른 프로젝트에서 가져오기 — 선택한 TC를 현재 프로젝트에 복제 */
-    @PostMapping("/import")
+    @PostMapping(value = "/import", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public List<TestCase> importFrom(@Validated @RequestBody ImportRequest req) {
         return service.importFrom(req);

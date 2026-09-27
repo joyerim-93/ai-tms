@@ -13,6 +13,7 @@ import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
 import ImportTestCaseModal from './ImportTestCaseModal.vue'
 import TestCaseFormModal from './TestCaseFormModal.vue'
+import ExcelUploadModal from './ExcelUploadModal.vue'
 
 // 좌: 폴더 트리 / 우: 선택 폴더(하위 포함)의 TC 목록. 선택 상태는 ?folder= (all | unfiled | id) 로 유지
 const route = useRoute()
@@ -50,6 +51,7 @@ const showFolderForm = ref(false)
 const folderForm = reactive({ name: '', parentFolderId: '' })
 const showImport = ref(false)
 const showForm = ref(false)
+const showExcel = ref(false)
 
 async function loadTree() {
   if (!projectId.value) return
@@ -124,6 +126,11 @@ function onSaved(saved) {
   router.push({ path: `/test-cases/${saved.id}`, query: saved.isParameterized && !saved.datasets.length ? { tab: 'dataset' } : {} })
 }
 
+// 엑셀 업로드: 결과는 팝업 안에 표시되고, 뒤의 폴더 트리/목록만 새로고침 (팝업은 사용자가 닫음)
+async function onExcelUploaded() {
+  await Promise.all([loadTree(), load(page.value)])
+}
+
 async function onImported(count) {
   const target = selectedFolderId.value ? folderLabel.value : '미분류'
   showImport.value = false
@@ -177,6 +184,7 @@ watch(folderKey, () => load())
       <div class="list-top">
         <h3 class="folder-title">{{ folderLabel }}</h3>
         <div class="actions">
+          <button class="btn" :disabled="!projectId" @click="showExcel = true">엑셀 업로드</button>
           <button class="btn" :disabled="!projectId" @click="showImport = true">다른 프로젝트에서 가져오기</button>
           <button class="btn btn-primary" :disabled="!projectId" @click="showForm = true">+ 테스트케이스 추가</button>
         </div>
@@ -266,6 +274,8 @@ watch(folderKey, () => load())
     @close="showForm = false"
     @saved="onSaved"
   />
+
+  <ExcelUploadModal v-if="showExcel && projectId" :project-id="projectId" @close="showExcel = false" @uploaded="onExcelUploaded" />
 
   <ImportTestCaseModal
     v-if="showImport && projectId"

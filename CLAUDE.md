@@ -55,7 +55,7 @@ ai-tms/
       │                          RecommendationStatusBadge(추천 잡 상태), TestCaseKeyBadge(Key 표기), DatasetTable(변수=열·데이터=행 스프레드시트, 인라인 편집/읽기전용·강조 행), ResultSelect(결과 뱃지 클릭→드롭다운 즉시 기록)
       ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
       ├─ utils/params.js         substitute/extractVariables/parseCell/braced — 파라미터화 {변수} 치환(프론트 담당)
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업) + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업)·ExcelUploadModal(엑셀 업로드) + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
 
@@ -151,7 +151,9 @@ ai-tms/
 | GET | `/api/dashboard?projectId` | 대시보드 KPI + 내 미수행 TC·내 담당 결함 상위 10건 |
 
 | GET | `/api/test-cases?projectId&excludeProjectId&folderId&unfiled&...` | folderId는 하위 폴더 포함, unfiled=미분류만, projectId 없으면 전체(가져오기 검색) |
-| POST | `/api/test-cases/import` `{projectId, testCaseIds, folderId}` | 다른 프로젝트 APPROVED·ACTIVE TC를 새 row로 복제 |
+| POST | `/api/test-cases/import` `{projectId, testCaseIds, folderId}` (JSON) | 다른 프로젝트 APPROVED·ACTIVE TC를 새 row로 복제 |
+| POST | `/api/test-cases/import?projectId=` (multipart `file`, .xlsx) | **엑셀 대량 업로드** → `{successCount, failureCount, failures:[{row, reason}]}` (같은 경로, Content-Type으로 구분) |
+| GET | `/api/test-cases/import/template` | 빈 양식(.xlsx, 헤더만 + '작성 안내' 시트) 다운로드 |
 | GET / POST | `/api/projects/{id}/folders` `{name, parentFolderId}` | 폴더 트리(roots/totalCount/unfiledCount) / 생성(형제 중 마지막, 같은 이름 409) |
 | PUT | `/api/projects/{id}/folders/{folderId}` `{name}` | 폴더 이름 변경 (같은 위치 같은 이름 409, 자기 이름 그대로는 허용) |
 | POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
@@ -193,6 +195,12 @@ ai-tms/
 
 - **TC 등록/수정 팝업에는 요구사항 연결이 없음.** 생성 후 상세의 '연결된 요구사항' 탭에서 연결. `PUT /api/test-cases/{id}`는 `atomicRequirementIds`를 **생략(null)하면 기존 연결 유지**, 보내면 전체 교체.
 - '다른 프로젝트에서 가져오기' 검색은 `keywordInProjectName=true`로 키워드를 **프로젝트명에도 LIKE** 적용(제목·코드·태그·프로젝트명). 일반 목록 검색은 프로젝트명 조건을 쓰지 않음.
+
+### 엑셀 업로드 규칙 (TestCaseExcelService)
+- 첫 시트·첫 행=헤더, 컬럼은 **헤더 이름**으로 찾음(순서 무관): `제목 | 스텝 | 기대결과 | 폴더경로 | 기법`. 제목·스텝·기대결과 필수. 최대 1000행, .xlsx만(5MB, `spring.servlet.multipart`), Apache POI(`poi-ooxml`).
+- 행 단위 부분 성공: 누락/형식 오류 행은 `failures`(엑셀 행 번호, 헤더=1행)에 사유와 함께 담고 나머지는 저장(실패 행의 폴더는 만들지 않음). 완전히 빈 행은 무시.
+- 스텝·기대결과 셀은 줄바꿈으로 여러 단계('1. ' 번호 제거). 줄 수가 같으면 단계별 짝, 다르면 기대결과 전체를 마지막 단계에. 폴더경로 `A > B > C`는 없는 폴더 자동 생성(`TestCaseFolderService.findOrCreatePath`), 비면 미분류. 기법은 한글 표시명 또는 영문 코드.
+- 저장 값: source=MANUAL, **review_status=DRAFT**(승인해야 차수 등록 가능), status=ACTIVE, 우선순위 MEDIUM, 작성자=CurrentUser. ('status=draft' 요청은 이 프로젝트의 review_status DRAFT로 해석)
 
 ### AI 추천/검토 규칙
 - **추천 잡(recommendation_job):** `RecommendationJobService.start` 가 RUNNING 잡을 만들어 즉시 반환하고 `recommendationExecutor`(스레드풀 2~4)에서 `RequirementService.recommend`를 실행 → 끝나면 SUCCEEDED(결과 요약 `result_json`)/FAILED(`error_message`)로 갱신. 잡 갱신은 추천 트랜잭션과 분리. 서버 시작 시 끝나지 못한 잡은 FAILED 처리. 상태 enum은 프로젝트 규칙대로 대문자. `atomic_requirement_id`는 NULL=요구사항 전체(현재 항상 NULL, 원자 단위 요청용 예약) — 실행 단위 컬럼은 `requirement_id`.
@@ -252,6 +260,7 @@ npm run build
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
+- ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ⏳ **다음: 3-3 LLM 신규 생성**(Claude API, `RecommendationEngine` 추가) → ai-agent(FastAPI /decompose, 임베딩 RAG 교체)

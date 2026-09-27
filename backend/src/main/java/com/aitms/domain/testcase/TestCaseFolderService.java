@@ -77,6 +77,26 @@ public class TestCaseFolderService {
         return get(folder.getId());
     }
 
+    /** 경로(상위→하위 이름 목록)의 마지막 폴더 id — 없는 폴더는 순서대로 만들어 가며 내려감 (엑셀 업로드) */
+    @Transactional
+    public Long findOrCreatePath(Long projectId, List<String> names) {
+        Long parentId = null;
+        for (String name : names) {
+            Long existing = mapper.findChildId(projectId, parentId, name).orElse(null);
+            if (existing != null) {
+                parentId = existing;
+                continue;
+            }
+            TestCaseFolder folder = new TestCaseFolder();
+            folder.setProjectId(projectId);
+            folder.setParentFolderId(parentId);
+            folder.setName(name);
+            mapper.insert(folder);
+            parentId = folder.getId();
+        }
+        return parentId;
+    }
+
     /** 이름 변경 — 같은 위치에 같은 이름이 있으면 409 (자기 자신 제외) */
     @Transactional
     public TestCaseFolder rename(Long projectId, Long id, FolderRenameRequest req) {

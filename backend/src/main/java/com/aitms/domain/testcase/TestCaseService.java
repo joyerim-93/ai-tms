@@ -66,6 +66,29 @@ public class TestCaseService {
         return get(tc.getId());
     }
 
+    /**
+     * 엑셀 업로드로 만든 TC — source=MANUAL, 검토 상태 DRAFT(승인 후 차수에 등록 가능), 상태 ACTIVE, 우선순위 MEDIUM.
+     * 폴더는 호출 측(TestCaseExcelService)이 프로젝트 소속으로 만든 것만 넘김.
+     */
+    @Transactional
+    public TestCase createUploaded(Long projectId, Long folderId, String title, TestTechnique technique,
+                                   List<TestCaseRequest.StepRequest> steps) {
+        TestCase tc = new TestCase();
+        tc.setProjectId(projectId);
+        tc.setFolderId(folderId);
+        tc.setTitle(title);
+        tc.setPriority(Priority.MEDIUM);
+        tc.setStatus(TestCaseStatus.ACTIVE);
+        tc.setTechnique(technique);
+        tc.setIsParameterized(false);
+        tc.setAuthorId(CurrentUser.id());
+        tc.setSource(TcSource.MANUAL);
+        tc.setReviewStatus(ReviewStatus.DRAFT);
+        mapper.insert(tc);
+        saveSteps(tc.getId(), steps);
+        return tc;
+    }
+
     /** 수정할 때마다 version +1, 단계는 전체 교체(요구사항 연결은 atomicRequirementIds를 보냈을 때만 교체). 프로젝트는 변경 불가(폴더 이동은 같은 프로젝트 안에서만). */
     @Transactional
     public TestCase update(Long id, TestCaseRequest req) {

@@ -7,8 +7,9 @@ export async function http(path, { method = 'GET', params, body } = {}) {
 
   const res = await fetch(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    // FormData(파일 업로드)는 브라우저가 multipart 경계를 넣도록 Content-Type 을 지정하지 않음
+    headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
+    body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
   })
 
   if (!res.ok) {

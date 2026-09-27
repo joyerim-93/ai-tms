@@ -35,6 +35,17 @@
         </choose>
     </select>
 
+    <select id="findChildId" resultType="long">
+        SELECT id FROM test_case_folder
+         WHERE project_id = #{projectId}
+           AND name = #{name}
+        <choose>
+            <when test="parentFolderId != null">AND parent_folder_id = #{parentFolderId}</when>
+            <otherwise>AND parent_folder_id IS NULL</otherwise>
+        </choose>
+         ORDER BY id LIMIT 1
+    </select>
+
     <update id="updateName">
         UPDATE test_case_folder SET name = #{name} WHERE id = #{id}
     </update>

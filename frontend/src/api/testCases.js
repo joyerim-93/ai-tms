@@ -9,6 +9,13 @@ export const testCaseApi = {
   review: (id, reviewStatus) => http(`/test-cases/${id}/review`, { method: 'PATCH', body: { reviewStatus } }),
   importFrom: (projectId, testCaseIds, folderId) =>
     http('/test-cases/import', { method: 'POST', body: { projectId, testCaseIds, folderId } }),
+  // 엑셀 대량 업로드 → { successCount, failureCount, failures: [{ row, reason }] }
+  uploadExcel: (projectId, file) => {
+    const body = new FormData()
+    body.append('file', file)
+    return http(`/test-cases/import?projectId=${projectId}`, { method: 'POST', body })
+  },
+  excelTemplateUrl: '/api/test-cases/import/template',
   runs: (id) => http(`/test-cases/${id}/runs`),
   replaceRequirements: (id, atomicRequirementIds) =>
     http(`/test-cases/${id}/requirements`, { method: 'PUT', body: { atomicRequirementIds } }),

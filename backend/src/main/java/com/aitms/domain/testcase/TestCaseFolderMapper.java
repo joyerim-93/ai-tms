@@ -25,6 +25,11 @@ public interface TestCaseFolderMapper {
                               @Param("name") String name,
                               @Param("excludeId") Long excludeId);
 
+    /** 같은 부모 아래 이름이 같은 폴더 id (없으면 empty) */
+    Optional<Long> findChildId(@Param("projectId") Long projectId,
+                               @Param("parentFolderId") Long parentFolderId,
+                               @Param("name") String name);
+
     void insert(TestCaseFolder folder);
 
     int updateName(@Param("id") Long id, @Param("name") String name);

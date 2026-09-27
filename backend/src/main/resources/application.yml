@@ -10,6 +10,10 @@ spring:
   sql:
     init:
       mode: always   # schema.sql 추가 시 기동마다 실행 (CREATE TABLE IF NOT EXISTS 사용)
+  servlet:
+    multipart:
+      max-file-size: 5MB      # 엑셀 업로드
+      max-request-size: 5MB
   h2:
     console:
       enabled: true
