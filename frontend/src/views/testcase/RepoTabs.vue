@@ -3,6 +3,7 @@
 const tabs = [
   { to: '/test-cases', label: '테스트케이스' },
   { to: '/test-cases/requirements', label: '요구사항 · AI 추천' },
+  { to: '/test-cases/review', label: 'AI 생성 검수' },
 ]
 </script>
 

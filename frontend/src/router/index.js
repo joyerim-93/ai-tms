@@ -23,6 +23,11 @@ const routes = [
         meta: { title: '테스트케이스 저장소' },
       },
       {
+        path: 'test-cases/review',
+        component: () => import('@/views/testcase/ReviewInboxView.vue'),
+        meta: { title: '검수함' },
+      },
+      {
         path: 'test-cases/:id(\\d+)',
         component: () => import('@/views/testcase/TestCaseDetailView.vue'),
         meta: { title: '테스트케이스 상세' },

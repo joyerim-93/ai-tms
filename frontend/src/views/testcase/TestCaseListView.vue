@@ -188,7 +188,13 @@ watch(folderKey, () => load())
   <RepoTabs />
 
   <section class="stat-row">
-    <StatCard v-for="s in stats" :key="s.title" v-bind="s" />
+    <StatCard
+      v-for="s in stats"
+      :key="s.title"
+      v-bind="s"
+      :class="{ clickable: s.title === '검토대기' }"
+      @click="s.title === '검토대기' && router.push('/test-cases/review')"
+    />
   </section>
 
   <div class="split">
@@ -336,6 +342,13 @@ watch(folderKey, () => load())
 </template>
 
 <style scoped>
+.clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.clickable:hover {
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
 .split {
   display: grid;
   grid-template-columns: 260px 1fr;
