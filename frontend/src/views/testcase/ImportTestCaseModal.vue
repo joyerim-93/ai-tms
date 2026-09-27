@@ -68,39 +68,45 @@ onMounted(search)
 
 <template>
   <BaseModal title="다른 프로젝트에서 가져오기" width="900px" @close="emit('close')">
-    <form class="filters" @submit.prevent="search">
-      <input v-model="filter.keyword" class="input" placeholder="프로젝트명 / 코드 / 제목 / 태그" />
-      <button class="btn btn-primary">검색</button>
-    </form>
-    <p class="muted hint">
-      다른 프로젝트의 승인된 테스트케이스입니다. 선택한 항목은 현재 프로젝트의 <strong>{{ folderLabel }}</strong>에 새 케이스로
-      복제되며 원본 프로젝트가 기록됩니다. (최대 100건{{ total > 100 ? ` / 전체 ${total}건` : '' }})
-    </p>
-    <p v-if="error" class="error-text">{{ error }}</p>
+    <div class="body-flex">
+      <div class="fixed-top">
+        <form class="filters" @submit.prevent="search">
+          <input v-model="filter.keyword" class="input" placeholder="프로젝트명 / 코드 / 제목 / 태그" />
+          <button class="btn btn-primary">검색</button>
+        </form>
+        <p class="muted hint">
+          다른 프로젝트의 승인된 테스트케이스입니다. 선택한 항목은 현재 프로젝트의 <strong>{{ folderLabel }}</strong>에 새 케이스로
+          복제되며 원본 프로젝트가 기록됩니다. (최대 100건{{ total > 100 ? ` / 전체 ${total}건` : '' }})
+        </p>
+        <p v-if="error" class="error-text">{{ error }}</p>
+      </div>
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width: 36px"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th>
-          <th style="width: 180px">프로젝트</th>
-          <th style="width: 100px">코드</th>
-          <th>제목</th>
-          <th style="width: 80px">출처</th>
-          <th style="width: 70px">우선순위</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="tc in items" :key="tc.id" class="clickable" @click="toggle(tc.id)">
-          <td><input type="checkbox" :checked="selected.has(tc.id)" @click.stop @change="toggle(tc.id)" /></td>
-          <td class="small">{{ tc.projectName }}<span v-if="tc.folderName" class="muted"> / {{ tc.folderName }}</span></td>
-          <td class="mono">{{ tc.tcCode }}</td>
-          <td>{{ tc.title }}</td>
-          <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
-          <td><PriorityChip :priority="tc.priority" /></td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-if="!items.length" class="empty">가져올 수 있는 테스트케이스가 없습니다.</div>
+      <div class="list-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width: 36px"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th>
+              <th style="width: 180px">프로젝트</th>
+              <th style="width: 100px">코드</th>
+              <th>제목</th>
+              <th style="width: 80px">출처</th>
+              <th style="width: 70px">우선순위</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tc in items" :key="tc.id" class="clickable" @click="toggle(tc.id)">
+              <td><input type="checkbox" :checked="selected.has(tc.id)" @click.stop @change="toggle(tc.id)" /></td>
+              <td class="small">{{ tc.projectName }}<span v-if="tc.folderName" class="muted"> / {{ tc.folderName }}</span></td>
+              <td class="mono">{{ tc.tcCode }}</td>
+              <td>{{ tc.title }}</td>
+              <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>
+              <td><PriorityChip :priority="tc.priority" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="!items.length" class="empty">가져올 수 있는 테스트케이스가 없습니다.</div>
+      </div>
+    </div>
 
     <template #footer>
       <span class="muted small">{{ selected.size }}건 선택</span>
@@ -113,6 +119,16 @@ onMounted(search)
 </template>
 
 <style scoped>
+.list-wrap {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.list-wrap .table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-card);
+  z-index: 1;
+}
 .filters {
   display: flex;
   gap: var(--space-2);

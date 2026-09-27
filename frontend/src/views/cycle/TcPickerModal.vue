@@ -87,43 +87,45 @@ onMounted(async () => {
     <p class="muted hint">사용 중이며 검토 승인된 TC만 표시됩니다. 최대 100건{{ total > 100 ? ` / 전체 ${total}건 — 검색어로 좁혀 주세요` : '' }}</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width: 36px"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th>
-          <th style="width: 110px">코드</th>
-          <th>제목</th>
-          <th style="width: 120px">모듈</th>
-          <th style="width: 80px">우선순위</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="tc in items"
-          :key="tc.id"
-          :class="registeredTcIds.has(tc.id) ? 'registered' : 'clickable'"
-          @click="!registeredTcIds.has(tc.id) && toggle(tc.id)"
-        >
-          <td>
-            <input
-              type="checkbox"
-              :checked="selected.has(tc.id) || registeredTcIds.has(tc.id)"
-              :disabled="registeredTcIds.has(tc.id)"
-              @click.stop
-              @change="toggle(tc.id)"
-            />
-          </td>
-          <td class="mono">{{ tc.tcCode }}</td>
-          <td>
-            {{ tc.title }}
-            <span v-if="registeredTcIds.has(tc.id)" class="chip chip-muted">등록됨</span>
-          </td>
-          <td>{{ tc.module ?? '-' }}</td>
-          <td><PriorityChip :priority="tc.priority" /></td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-if="!items.length" class="empty">검색 결과가 없습니다.</div>
+    <div class="list-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width: 36px"><input type="checkbox" :checked="allChecked" @change="toggleAll" /></th>
+            <th style="width: 110px">코드</th>
+            <th>제목</th>
+            <th style="width: 120px">모듈</th>
+            <th style="width: 80px">우선순위</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="tc in items"
+            :key="tc.id"
+            :class="registeredTcIds.has(tc.id) ? 'registered' : 'clickable'"
+            @click="!registeredTcIds.has(tc.id) && toggle(tc.id)"
+          >
+            <td>
+              <input
+                type="checkbox"
+                :checked="selected.has(tc.id) || registeredTcIds.has(tc.id)"
+                :disabled="registeredTcIds.has(tc.id)"
+                @click.stop
+                @change="toggle(tc.id)"
+              />
+            </td>
+            <td class="mono">{{ tc.tcCode }}</td>
+            <td>
+              {{ tc.title }}
+              <span v-if="registeredTcIds.has(tc.id)" class="chip chip-muted">등록됨</span>
+            </td>
+            <td>{{ tc.module ?? '-' }}</td>
+            <td><PriorityChip :priority="tc.priority" /></td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-if="!items.length" class="empty">검색 결과가 없습니다.</div>
+    </div>
 
     <template #footer>
       <label class="assignee">
@@ -151,6 +153,16 @@ onMounted(async () => {
 .hint {
   margin: var(--space-2) 0;
   font-size: var(--font-size-xs);
+}
+.list-wrap {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.list-wrap .table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-card);
+  z-index: 1;
 }
 .registered {
   color: var(--text-muted);

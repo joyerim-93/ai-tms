@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
 }
 .header-actions {
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
 .panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
 }
 .meta {
   display: flex;
@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-xs);
 }
 .block {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
 }
 .pre {
   margin: 0;
