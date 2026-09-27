@@ -103,6 +103,8 @@ ai-tms/
 - data.sql은 `INSERT IGNORE INTO`만 사용 — 재기동 시 중복·덮어쓰기 없음(사용자가 바꾼 샘플 데이터 유지). 명시 id로 넣어도 H2가 identity를 자동 조정함(테스트로 확인).
 - 코드 채번(TC Key `TC-101`~, REQ-001, DF-0001)은 모두 `MAX(번호)+1` 방식 → 샘플의 명시 코드와 충돌 없음. TC Key는 `tc_code`(전역 순번, 'TC-숫자'만 집계, 최소 101), 화면 표기 **Key**.
 - 샘플(docs/02-sample-data.sql 변환): 사용자 1 qa.kim 김큐에이(QA), 2 dev.park 박개발(DEV), 3 qa.lee 이큐에이(QA), 4 biz.choi(BIZ), 5 admin / 프로젝트 1 `KB-SAVING` KB 적금 통장 신설, 2 `KB-SWITCH` 갈아타기(과거, RAG 원본) / 요구사항 REQ-001 + 원자 4 + 규칙 4 / TC 11(RULE·RAG·LLM, DRAFT 5) / 1차 통합테스트(PASS4·FAIL1·BLOCKED1·미수행3) / 결함 DF-0001. **인증 도입 전까지 로그인 사용자 = id 1(qa.kim)**.
+- **프로젝트 3 `COMMON-TC` '공통 테스트케이스'**(마스터 프로젝트, 멤버 없음 — KB-SWITCH처럼 '가져오기' 전용): 폴더 7개(화면입력/인증보안/이체거래/금액/금리/브라우저호환성/앱호환성 공통검증) + TC 27건(전부 MANUAL·APPROVED·ACTIVE, TC-115~141). 금액(TC-131)·금리(TC-141)는 프로젝트마다 필드명·min/max·조건-금리 매핑이 달라 **템플릿**으로 만들고 `precondition`에 "복사 후 값 수정" 안내를 남김 — 금액은 파라미터화(데이터셋 4행, 예시 값). '다른 프로젝트에서 가져오기'에서 키워드 "공통"으로 검색하면 전부 잡힘(프로젝트명 매치, `keywordInProjectName`).
+- TC id 1~14는 프로젝트 1·2, 15~41은 프로젝트 3(공통 테스트케이스) — 전체 TC 수 **41건**(SchemaInitTest 등 카운트 단언 시 참고).
 - 서비스 테스트는 샘플과 분리하려고 테스트 전용 프로젝트(id 99/98)를 `@BeforeEach`에서 넣어 사용.
 - 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 인메모리 DB 사용(개발 DB 오염 금지).
 
@@ -167,6 +169,8 @@ ai-tms/
 | POST | `/api/executions/{id}/draft` `{result, comment}` | **임시저장** — result는 미선택(null) 허용, 확정 결과·이력에는 반영 안 됨 |
 | GET | `/api/users` | 가입(비밀번호 있음)·활성 사용자 전체 `{id, displayName}`, 이름순 — 담당자 자유입력 콤보(`UserCombo`)용, 로그인만 하면 조회 가능(권한 체계 없음) |
 | POST | `/api/executions/{id}/results` `{result, comment}` | 결과 입력 → 최종결과 갱신 + 이력 추가 |
+| GET | `/api/cycles/{id}/export` | 엑셀 다운로드(이 차수만) — TC Key\|제목\|데이터셋 행\|결과\|담당자\|실행일시\|코멘트 |
+| GET | `/api/cycles/export?projectId=` | 엑셀 다운로드(전체 차수) — 위 컬럼 맨 앞에 '차수' 컬럼 추가, 프로젝트의 모든 차수 포함 |
 
 | GET | `/api/defects?projectId\|executionId&status&unresolved&severity&assigneeId&keyword&page&size` | 결함 검색 (projectId·executionId 중 하나 필수) |
 | GET / POST / PUT | `/api/defects[/{id}]` | 결함 상세/등록/수정 (응답에 `nextStatuses`, 삭제 API 없음 → REJECTED) |
@@ -180,6 +184,7 @@ ai-tms/
 | GET | `/api/test-cases/import/template` | 빈 양식(.xlsx, 헤더만 + '작성 안내' 시트) 다운로드 |
 | GET / POST | `/api/projects/{id}/folders` `{name, parentFolderId}` | 폴더 트리(roots/totalCount/unfiledCount) / 생성(형제 중 마지막, 같은 이름 409) |
 | PUT | `/api/projects/{id}/folders/{folderId}` `{name}` | 폴더 이름 변경 (같은 위치 같은 이름 409, 자기 이름 그대로는 허용) |
+| DELETE | `/api/projects/{id}/folders/{folderId}` | 폴더 삭제 — 직속 TC·하위 폴더를 부모(최상위면 미분류)로 승격 후 삭제 |
 | POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
 | GET / POST / PUT / DELETE | `/api/test-cases/{id}/datasets[/{rowId}]` `{rowLabel, paramValues:{}, expectedResultOverride}` | 데이터셋 행 CRUD (행 단위 — 실행 항목이 참조, 실행된 행 삭제 409) |
 | PUT | `/api/test-cases/{id}/requirements` `{atomicRequirementIds}` | 연결 요구사항 교체 ('연결된 요구사항' 탭) |
@@ -262,6 +267,16 @@ npm run dev      # http://localhost:5173  (/api → 8080 프록시)
 npm run build
 ```
 
+### 폴더 삭제 규칙
+- `FolderTree` 우클릭 메뉴에 '🗑️ 삭제' 추가. 안이 비어있지 않으면(직속 TC·하위 폴더) `window.confirm`으로 "TC N건, 하위폴더 M개가 있습니다. 삭제하면 TC들은 상위 폴더로 이동합니다. 계속할까요?" 확인 후 진행, 비어 있으면 짧은 확인만.
+- `DELETE /api/projects/{id}/folders/{folderId}` — 직속 TC·직속 하위 폴더를 삭제되는 폴더의 **부모**로 한 단계만 승격시킨 뒤 삭제(더 깊이 중첩된 내용은 그 하위 폴더를 따라 그대로 이동). 최상위 폴더 삭제 시 승격 대상 부모가 없으므로 TC는 미분류(`folder_id=NULL`), 하위 폴더는 새 최상위가 됨.
+- 목록 화면에서 지금 보고 있던 폴더를 삭제하면 '전체'로 이동.
+
+### 엑셀 아이콘·다운로드
+- `components/ExcelIcon.vue`(초록 스프레드시트 SVG, 브랜드색 고정)를 '엑셀 업로드'(테스트케이스 화면)·'엑셀 다운로드'(차수 상세) 버튼에 공용으로 붙임.
+- `GET /api/cycles/{id}/export`(이 차수만) / `GET /api/cycles/export?projectId=`(전체 차수, 맨 앞에 '차수' 컬럼 추가) — Apache POI, 컬럼 TC Key\|제목\|데이터셋 행\|결과\|담당자\|실행일시\|코멘트. 차수 상세의 '엑셀 다운로드' 버튼은 작은 드롭다운(이 차수만/전체 차수, `AppHeader`·`ProjectSelector`와 같은 바깥클릭 패턴) → `window.open`으로 새 탭에 열어 세션 쿠키로 인증된 채 바로 다운로드(GET이라 CSRF 헤더 불필요).
+- 요청서의 `/api/test-rounds/...`는 이 프로젝트 실제 도메인 이름에 맞춰 `/api/cycles/...`로 구현.
+
 ### 첨부파일 규칙 (com.aitms.attachment)
 - 저장: `app.upload.dir`(기본 `./uploads` = backend 실행 위치, **git 제외**) 아래 `executions/{id}/`·`defects/{id}/`에 **UUID 이름**으로 저장, DB에는 상대 경로·원본 파일명·MIME·크기·업로더. 서버 경로는 API 응답에 노출하지 않음(`@JsonIgnore`).
 - 제한: 확장자 화이트리스트(png/jpg/jpeg/gif/webp/bmp/pdf/txt/log/csv/json/zip/xlsx/docx — **svg·html 등 제외**), Content-Type 은 확장자로 결정(클라이언트 값 불신), 파일당 10MB(`spring.servlet.multipart`), 항목당 최대 20개, 빈 파일/허용 안 된 형식 400, 파일명의 경로 구분자·제어문자 제거, 읽을 때도 업로드 루트 이탈 검사.
@@ -298,6 +313,11 @@ npm run build
 - ✅ **증빙 첨부**(테스트 수행 결과·결함): 로컬 디스크 저장, AttachmentPanel, FAIL 시 첨부 유도 (테스트 91개)
 - ✅ **Spring Security 로그인**: 세션+CSRF, BCrypt, 로그인 화면·가드, `/api/**` 보호, H2 콘솔 ADMIN 전용 (테스트 83개)
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
+- ✅ **회원가입·시드계정 3171613**, CORS 자격증명, 헤더 좌우 그룹 분리(로고+메뉴 / 프로젝트·테마·사용자명) + 사용자명 클릭 로그아웃 드롭다운
+- ✅ **다크모드**(ThemeToggle, localStorage+OS 설정) + **StatCard 상단 요약**(테스트케이스/테스트수행/이슈 3화면)
+- ✅ **프로젝트 생성 위치 이동**(헤더 ProjectSelector 드롭다운) / **담당자 자유입력 콤보**(GET /api/users, UserCombo) / **테스트수행 임시저장**(is_draft, 결과 칩 선택→저장·임시저장 버튼)
+- ✅ **폴더 삭제**(직속 내용 상위로 승격) / **엑셀 아이콘** / **테스트수행 결과 엑셀 다운로드**(이 차수만·전체 차수)
+- ✅ **'공통 테스트케이스' 마스터 프로젝트 시드**(프로젝트 3, 폴더 7개·TC 27건 — 은행권 공통/회귀 테스트 템플릿, '가져오기'로 재사용)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)

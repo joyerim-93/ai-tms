@@ -99,9 +99,10 @@ class TestCaseFolderServiceTest {
         TestCaseSearch s = new TestCaseSearch();
         s.setExcludeProjectId(1L);
         s.setReviewStatus(ReviewStatus.APPROVED);
+        s.setSize(50); // '공통 테스트케이스' 샘플까지 합쳐 기본 페이지(20)를 넘음
 
         assertThat(testCaseService.search(s).items()).extracting(TestCase::getProjectName)
-                .containsOnly("KB 자유적금 갈아타기 이벤트");
+                .containsOnly("KB 자유적금 갈아타기 이벤트", "공통 테스트케이스");
     }
 
     @Test

@@ -40,7 +40,7 @@ class SchemaInitTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_member", Integer.class)).isEqualTo(5);
 
         assertThat(jdbc.queryForObject("SELECT result FROM test_execution WHERE id = 7", String.class)).isEqualTo("PASS");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM test_case", Integer.class)).isEqualTo(14);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM test_case", Integer.class)).isEqualTo(41); // 14(샘플 2개 프로젝트) + 27(공통 테스트케이스)
 
         jdbc.update("INSERT INTO users (login_id, name, role) VALUES ('new01', '신규', 'DEV')");
         Long newId = jdbc.queryForObject("SELECT id FROM users WHERE login_id = 'new01'", Long.class);

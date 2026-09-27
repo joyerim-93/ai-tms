@@ -63,6 +63,7 @@ class TestCaseServiceTest {
         service.create(request("로그아웃", "인증", List.of()));
 
         TestCaseSearch search = new TestCaseSearch();
+        search.setProjectId(1L); // '공통 테스트케이스'(3)에도 같은 모듈명 샘플이 있어 프로젝트로 좁힘
         search.setKeyword("주문");
         assertThat(service.search(search).total()).isEqualTo(2);
 
