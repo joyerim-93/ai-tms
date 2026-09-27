@@ -79,6 +79,7 @@ ai-tms/
 - **test_cycle**(차수: project_id, cycle_no, name, 기간, status `PLANNED|IN_PROGRESS|CLOSED`)
 - **test_execution**(cycle_id, test_case_id **UNIQUE**, tc_version, assignee_id, 최종 result `PASS|FAIL|BLOCKED|NOT_RUN`)
 - **test_execution_history**(execution_id, result, executed_by, executed_at, comment) — 차수×TC별 모든 수행 기록
+- **test_execution**.`is_draft`/`draft_result`/`draft_comment` — 임시저장(확정 전) 값. 확정 결과·이력과는 분리, 저장(record) 시 초기화
 - **defect**(project_id, defect_code, severity, priority, status `NEW→OPEN→IN_PROGRESS→RESOLVED→CLOSED|REJECTED`, reporter_id, assignee_id, execution_id nullable)
 - **defect_comment**(defect_id, author_id, content, status_from/to)
 - **test_execution_attachment**(execution_id, file_name, file_path, content_type, file_size, uploaded_by, uploaded_at) / **defect_attachment**(defect_id, …동일) — 증빙 첨부. 파일은 디스크, DB엔 업로드 루트 기준 **상대 경로**만
@@ -162,7 +163,9 @@ ai-tms/
 | POST | `/api/cycles/{id}/executions` `{testCaseIds, assigneeId}` | TC 등록 (ACTIVE·미등록만, `{added}` 반환) |
 | PUT | `/api/cycles/{id}/executions/assignee` `{executionIds, assigneeId}` | 담당자 일괄 지정 (null=해제) |
 | DELETE | `/api/cycles/{id}/executions/{executionId}` | 차수에서 제외 (이력 있으면 409) |
-| GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목 / 이력(최신순) |
+| GET | `/api/executions/{id}`, `/api/executions/{id}/history` | 수행 항목(is_draft/draftResult/draftComment 포함) / 이력(최신순) |
+| POST | `/api/executions/{id}/draft` `{result, comment}` | **임시저장** — result는 미선택(null) 허용, 확정 결과·이력에는 반영 안 됨 |
+| GET | `/api/users` | 가입(비밀번호 있음)·활성 사용자 전체 `{id, displayName}`, 이름순 — 담당자 자유입력 콤보(`UserCombo`)용, 로그인만 하면 조회 가능(권한 체계 없음) |
 | POST | `/api/executions/{id}/results` `{result, comment}` | 결과 입력 → 최종결과 갱신 + 이력 추가 |
 
 | GET | `/api/defects?projectId\|executionId&status&unresolved&severity&assigneeId&keyword&page&size` | 결함 검색 (projectId·executionId 중 하나 필수) |
@@ -196,7 +199,7 @@ ai-tms/
 - 폴더는 같은 프로젝트 안에서만(교차 프로젝트 폴더 지정 400). TC 수정 시 프로젝트 이동 불가, 폴더 이동은 가능.
 - 차수에는 **같은 프로젝트의** ACTIVE·APPROVED TC만 등록.
 - 폴더 선택 상태는 URL `?folder=all|unfiled|<id>`로 유지(상세→목록 복귀 시 같은 폴더).
-- **헤더 ProjectSelector는 '전환만'**: 프로젝트 **생성은 테스트케이스 탭(RepoTabs '+새 프로젝트')에서만** 가능. 헤더에 생성 UI를 두지 않는다.
+- **프로젝트 생성은 헤더 `ProjectSelector` 드롭다운**(맨 아래 '+ 새 프로젝트 만들기' → `NewProjectModal` 팝업, `components/`)에서만. RepoTabs에는 더 이상 없음. 프로젝트 목록·조회 API는 로그인 사용자 누구에게나 공개(멤버십/권한 제한 없음 — RBAC 미도입).
 - **프로젝트 필터링 원칙(v4-4):** 목록·집계 API는 모두 `projectId` 쿼리(또는 차수/수행항목/이슈 id처럼 이미 프로젝트가 정해진 경로)로 조회. 예외는 설계상 전체 대상인 것만 — 규칙 카탈로그, '다른 프로젝트에서 가져오기' 검색(`excludeProjectId`), **RAG 검색(3-2: project_id로 제한하지 않고 전체 프로젝트의 APPROVED·ACTIVE TC 대상, 현재 프로젝트 TC 포함 여부는 구현 시 결정)**.
   경로는 문서 초안과 다르게 기존 `/api/dashboard`, `/api/cycles` 유지(사용자 확인).
 - 프로젝트 전환 시 TC/차수/이슈의 상세·수정 화면(`params.id`)에 있으면 해당 목록으로 이동.
@@ -236,6 +239,8 @@ ai-tms/
 
 ### 테스트수행 규칙
 - 결과 입력 시 수행자=CurrentUser, 차수가 PLANNED면 IN_PROGRESS로 자동 전환.
+- **임시저장**: `ExecutionPanel`의 결과 칩은 클릭해도 즉시 저장되지 않고 선택만 됨 — 패널 상단 '임시저장'(결과 미선택도 가능, 코멘트만도 됨)/'저장'(결과 필수, 기존 `record` 그대로) 버튼으로 확정. 임시저장은 `is_draft`만 갱신하고 이력에 안 남으며, 패널 재진입(`onMounted`) 시 `draftResult`/`draftComment`로 복원. 확정 저장하면 draft 필드는 서버가 비움. 차수 상세 테이블의 `ResultSelect`(행 인라인 즉시 변경)는 이 흐름과 별개 — 그대로 즉시 확정.
+- **담당자 선택**: 프로젝트 멤버로 한정하지 않고 `GET /api/users`(가입 사용자 전체)를 `UserCombo`(선택+자유입력, 이름 정확히 일치해야 매핑됨)로 노출. TC 추가 팝업(`TcPickerModal`)·차수 상세 일괄 담당자 지정에 적용. (결함 담당자는 아직 프로젝트 멤버 select — 변경 안 함)
 - CLOSED 차수는 TC 등록·담당 지정·제외·결과 입력 모두 409 (상태를 되돌리면 가능).
 - 진행률 = (전체 − 미수행) / 전체 (`labels.js progressRate`).
 - `test_execution.tc_version`(등록 시점) ≠ 현재 TC 버전이면 화면에 'TC 변경됨' 표시. 단계는 현재 버전 기준으로 보여줌(스냅샷 미보관).
