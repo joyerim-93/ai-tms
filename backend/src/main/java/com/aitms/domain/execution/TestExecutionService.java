@@ -9,6 +9,7 @@ import com.aitms.common.ApiException;
 import com.aitms.common.CurrentUser;
 import com.aitms.domain.execution.ExecutionRequests.AddExecutionsRequest;
 import com.aitms.domain.execution.ExecutionRequests.AssignRequest;
+import com.aitms.domain.execution.ExecutionRequests.DraftRequest;
 import com.aitms.domain.execution.ExecutionRequests.ResultRequest;
 
 import lombok.RequiredArgsConstructor;
@@ -70,6 +71,15 @@ public class TestExecutionService {
         mapper.insertHistory(history);
 
         cycleService.markInProgress(cycle);
+        return get(id);
+    }
+
+    /** 임시저장 — 확정 결과·이력에는 영향 없음. 재진입 시 이 값으로 복원해 이어서 입력 */
+    @Transactional
+    public TestExecution saveDraft(Long id, DraftRequest req) {
+        TestExecution exec = get(id);
+        cycleService.getOpen(exec.getCycleId());
+        mapper.updateDraft(id, req.result(), req.comment() == null || req.comment().isBlank() ? null : req.comment().strip());
         return get(id);
     }
 

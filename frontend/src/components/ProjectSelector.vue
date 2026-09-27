@@ -2,17 +2,24 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/projectStore'
+import NewProjectModal from '@/components/NewProjectModal.vue'
 
-// 헤더 우측 프로젝트 선택 드롭다운 — "전환만" 가능 (등록은 테스트케이스 화면에서)
+// 헤더 우측 프로젝트 선택 드롭다운 — 전환 + 맨 아래 '+ 새 프로젝트 만들기'(팝업)
 const projectStore = useProjectStore()
 const { projects, currentProjectId, currentProject } = storeToRefs(projectStore)
 
 const open = ref(false)
 const root = ref(null)
+const showNewProject = ref(false)
 
 function choose(id) {
   projectStore.selectProject(id)
   open.value = false
+}
+
+function openNewProject() {
+  open.value = false
+  showNewProject.value = true
 }
 
 const closeOnOutside = (e) => {
@@ -38,7 +45,6 @@ onBeforeUnmount(() => {
       class="trigger"
       :aria-expanded="open"
       aria-haspopup="listbox"
-      :disabled="!projects.length"
       @click="open = !open"
     >
       <span class="label">프로젝트</span>
@@ -62,8 +68,14 @@ onBeforeUnmount(() => {
           <span class="option-code">{{ p.code }}</span>
         </span>
       </li>
+      <li class="option new-project" role="option" @click="openNewProject">
+        <span class="check">+</span>
+        <span class="option-body">새 프로젝트 만들기</span>
+      </li>
     </ul>
   </div>
+
+  <NewProjectModal v-if="showNewProject" @close="showNewProject = false" />
 </template>
 
 <style scoped>
@@ -150,5 +162,15 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
+}
+.new-project {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+.new-project .check {
+  color: var(--accent);
 }
 </style>

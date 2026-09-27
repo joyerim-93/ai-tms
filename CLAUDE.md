@@ -94,7 +94,7 @@ ai-tms/
 - **CORS**: `WebConfig`가 `allowCredentials(true)`(+`Security .cors()`)로 프론트 출처(`app.cors.allowed-origins`)에 쿠키를 허용, 프론트는 `credentials:'include'`. 개발 기본은 Vite 프록시(같은 출처).
 - **초기 비밀번호(개발용)**: 기동 시 비밀번호가 없는 사용자에게 `app.security.initial-password`(기본 `aitms1234!`)를 BCrypt 로 설정(`PasswordBootstrap`, WARN 로그). 샘플 계정: `qa.kim`(김큐에이·QA) `dev.park`(박개발·DEV) `qa.lee`(이큐에이·QA) `biz.choi`(BIZ) `admin`(ADMIN). **운영에서는 반드시 변경/제거.** 회원가입·비밀번호 변경·계정관리 화면은 아직 없음.
 - `CurrentUser.id()` = 세션 principal(`AuthUser`)의 id. 인증 컨텍스트가 없는 곳(서비스 테스트, 추천 백그라운드 스레드)만 기본 사용자 id 1로 대체. 작성자·실행자·보고자·검토자·코멘트 작성자·프로젝트 등록자(PM)는 모두 로그인 사용자로 서버가 기록 — 화면의 작성자/실행자/보고자는 **읽기 전용 표시**(직접 입력 불가).
-- 프론트: `authStore`(user, currentUserName=displayName, loadMe/login/register/logout), `LoginView`·`RegisterView`, CSRF 쿠키가 없으면(로그아웃 직후) `http.js`가 GET 한 번으로 새 토큰을 받은 뒤 전송, 라우터 가드(비로그인 → `/login?redirect=`), `http.js`가 401 을 받으면 로그인 화면으로. TC 차수 TC 추가 팝업의 담당자 기본값 = 로그인 사용자(멤버인 경우, 변경 가능).
+- 프론트: `authStore`(user, currentUserName=displayName, loadMe/login/register/logout), `LoginView`·`RegisterView`, CSRF 쿠키가 없으면(로그아웃 직후) `http.js`가 GET 한 번으로 새 토큰을 받은 뒤 전송. 헤더 우측 순서 **프로젝트 선택 → `ThemeToggle` → 사용자명**(`{이름} 님` 클릭 → 로그아웃 드롭다운, `ProjectSelector`와 같은 바깥클릭/Esc 패턴), 라우터 가드(비로그인 → `/login?redirect=`), `http.js`가 401 을 받으면 로그인 화면으로. TC 차수 TC 추가 팝업의 담당자 기본값 = 로그인 사용자(멤버인 경우, 변경 가능).
 - (이력) 로그인 도입 전 임시로 '화면에 입력한 이름 → X-User-Name 헤더' 방식(userStore, 이름 입력 팝업, guest 사용자)을 썼으나 로그인으로 대체하며 제거함.
 
 ### 스키마/데이터 규칙

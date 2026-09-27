@@ -86,10 +86,22 @@
 
     <update id="updateResult">
         UPDATE test_execution
-           SET result      = #{result},
-               executed_by = #{executedBy},
-               executed_at = CURRENT_TIMESTAMP,
-               updated_at  = CURRENT_TIMESTAMP
+           SET result        = #{result},
+               executed_by   = #{executedBy},
+               executed_at   = CURRENT_TIMESTAMP,
+               is_draft      = FALSE,
+               draft_result  = NULL,
+               draft_comment = NULL,
+               updated_at    = CURRENT_TIMESTAMP
+         WHERE id = #{id}
+    </update>
+
+    <update id="updateDraft">
+        UPDATE test_execution
+           SET is_draft      = TRUE,
+               draft_result  = #{result},
+               draft_comment = #{comment},
+               updated_at    = CURRENT_TIMESTAMP
          WHERE id = #{id}
     </update>
 

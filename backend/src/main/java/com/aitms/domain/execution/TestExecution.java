@@ -20,6 +20,9 @@ public class TestExecution {
     private ExecutionResult result;
     private Long executedBy;
     private LocalDateTime executedAt;
+    private Boolean isDraft;
+    private ExecutionResult draftResult;
+    private String draftComment;
 
     // 조인 컬럼
     private String tcCode;

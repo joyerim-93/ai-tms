@@ -32,4 +32,8 @@ public final class ExecutionRequests {
 
     public record ResultRequest(@NotNull ExecutionResult result, @Size(max = 2000) String comment) {
     }
+
+    /** 임시저장 — 결과는 아직 선택 전이어도(코멘트만) 저장 가능 */
+    public record DraftRequest(ExecutionResult result, @Size(max = 2000) String comment) {
+    }
 }

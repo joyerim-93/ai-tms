@@ -17,6 +17,7 @@ import com.aitms.common.Priority;
 import com.aitms.domain.execution.ExecutionRequests.AddExecutionsRequest;
 import com.aitms.domain.execution.ExecutionRequests.AssignRequest;
 import com.aitms.domain.execution.ExecutionRequests.CycleRequest;
+import com.aitms.domain.execution.ExecutionRequests.DraftRequest;
 import com.aitms.domain.execution.ExecutionRequests.ResultRequest;
 import com.aitms.domain.testcase.TestCaseRequest;
 import com.aitms.domain.testcase.TestCaseService;
@@ -141,5 +142,42 @@ class TestExecutionServiceTest {
         jdbc.update("UPDATE test_case SET review_status = 'DRAFT' WHERE id = ?", tc2);
         // tc2(DRAFT), 샘플 TC 1(다른 프로젝트 소유) 제외
         assertThat(executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1, tc2, 1L), null))).isEqualTo(1);
+    }
+
+    @Test
+    void 임시저장은_확정_결과와_이력에_영향을_주지_않고_재진입시_복원된다() {
+        TestCycle cycle = createCycle("1차");
+        executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
+        Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
+
+        TestExecution draft = executionService.saveDraft(execId, new DraftRequest(ExecutionResult.FAIL, "재현 확인 중"));
+        assertThat(draft.getIsDraft()).isTrue();
+        assertThat(draft.getDraftResult()).isEqualTo(ExecutionResult.FAIL);
+        assertThat(draft.getDraftComment()).isEqualTo("재현 확인 중");
+        assertThat(draft.getResult()).isEqualTo(ExecutionResult.NOT_RUN);   // 확정 결과는 그대로
+        assertThat(executionService.history(execId)).isEmpty();            // 이력에도 안 남음
+
+        // 코멘트만 있고 결과 미선택인 임시저장도 가능, 덮어쓰기됨
+        TestExecution draft2 = executionService.saveDraft(execId, new DraftRequest(null, "  "));
+        assertThat(draft2.getDraftResult()).isNull();
+        assertThat(draft2.getDraftComment()).isNull(); // 공백은 null 처리
+
+        // 확정 저장하면 임시저장 값은 지워짐
+        TestExecution recorded = executionService.record(execId, new ResultRequest(ExecutionResult.PASS, "최종 확인"));
+        assertThat(recorded.getIsDraft()).isFalse();
+        assertThat(recorded.getDraftResult()).isNull();
+        assertThat(recorded.getDraftComment()).isNull();
+        assertThat(recorded.getResult()).isEqualTo(ExecutionResult.PASS);
+    }
+
+    @Test
+    void 종료된_차수는_임시저장도_막는다() {
+        TestCycle cycle = createCycle("1차");
+        executionService.add(cycle.getId(), new AddExecutionsRequest(List.of(tc1), null));
+        Long execId = executionService.findByCycle(cycle.getId(), new ExecutionSearch()).get(0).getId();
+        cycleService.update(cycle.getId(), new CycleRequest(null, cycle.getName(), null, null, CycleStatus.CLOSED));
+
+        assertThatThrownBy(() -> executionService.saveDraft(execId, new DraftRequest(ExecutionResult.FAIL, "x")))
+                .isInstanceOf(ApiException.class);
     }
 }

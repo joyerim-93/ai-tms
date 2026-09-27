@@ -24,9 +24,11 @@ const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
+const selectedResult = ref(null) // 결과 칩은 선택만 함(즉시 저장 안 함) — '저장'/'임시저장' 버튼으로 확정
 const auth = useAuthStore() // 실행자 = 로그인 사용자(서버가 기록)
 const defects = ref([]) // 이 수행 항목에 연결된 이슈
 const saving = ref(false)
+const draftSaving = ref(false)
 const error = ref('')
 const router = useRouter()
 
@@ -49,12 +51,16 @@ const stepText = (text) =>
 const canReportDefect = () => ['FAIL', 'BLOCKED'].includes(exec.value?.result)
 const reportDefect = () => router.push(`/defects/new?executionId=${props.executionId}`)
 
-async function record(result) {
+const selectResult = (key) => (selectedResult.value = selectedResult.value === key ? null : key)
+
+async function save() {
+  if (!selectedResult.value) return
   saving.value = true
   error.value = ''
   try {
-    await executionApi.record(props.executionId, result, comment.value)
+    await executionApi.record(props.executionId, selectedResult.value, comment.value)
     comment.value = ''
+    selectedResult.value = null
     await load()
     emit('recorded')
   } catch (e) {
@@ -64,7 +70,31 @@ async function record(result) {
   }
 }
 
-onMounted(() => load().catch((e) => (error.value = e.message)))
+// 확정이 아닌 중간 상태 저장 — 결과·이력에는 반영되지 않고, 재진입(onMounted) 시 이 값으로 복원됨
+async function saveDraftAction() {
+  draftSaving.value = true
+  error.value = ''
+  try {
+    await executionApi.saveDraft(props.executionId, selectedResult.value, comment.value)
+    await load()
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    draftSaving.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    await load()
+    if (exec.value.isDraft) {
+      selectedResult.value = exec.value.draftResult
+      comment.value = exec.value.draftComment ?? ''
+    }
+  } catch (e) {
+    error.value = e.message
+  }
+})
 </script>
 
 <template>
@@ -76,7 +106,17 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
           <h3>{{ exec.tcTitle }}</h3>
           <div v-if="exec.datasetId" class="dataset-label">🔢 {{ exec.datasetLabel }}</div>
         </div>
-        <button class="btn btn-sm" @click="emit('close')">✕</button>
+        <div class="header-actions">
+          <template v-if="!readonly && exec && tc">
+            <button class="btn btn-sm" :disabled="draftSaving || saving" @click="saveDraftAction">
+              {{ draftSaving ? '저장 중…' : '임시저장' }}
+            </button>
+            <button class="btn btn-sm btn-primary" :disabled="!selectedResult || saving || draftSaving" @click="save">
+              {{ saving ? '저장 중…' : '저장' }}
+            </button>
+          </template>
+          <button class="btn btn-sm" @click="emit('close')">✕</button>
+        </div>
       </header>
 
       <div class="panel-body">
@@ -85,6 +125,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
           <div class="meta">
             <PriorityChip :priority="tc.priority" />
             <StatusBadge :status="exec.result" />
+            <span v-if="exec.isDraft" class="chip chip-medium" title="임시저장된 코멘트/결과가 있습니다">📝 임시저장됨</span>
             <span class="muted">담당 {{ exec.assigneeName ?? '미지정' }}</span>
           </div>
           <p v-if="exec.tcVersion !== tc.version" class="notice">
@@ -133,14 +174,16 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
               <button
                 v-for="(label, key) in RESULT"
                 :key="key"
+                type="button"
                 class="btn result-btn"
-                :class="`result-${key.toLowerCase()}`"
-                :disabled="saving"
-                @click="record(key)"
+                :class="[`result-${key.toLowerCase()}`, { selected: selectedResult === key }]"
+                :disabled="saving || draftSaving"
+                @click="selectResult(key)"
               >
                 {{ label }}
               </button>
             </div>
+            <p class="muted small hint">결과를 선택한 뒤 위의 ‘저장’으로 확정하거나, ‘임시저장’으로 나중에 이어서 입력하세요.</p>
           </section>
           <section v-else class="block">
             <p class="muted">종료된 차수는 결과를 입력할 수 없습니다.</p>
@@ -208,6 +251,11 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   align-items: flex-start;
   padding: var(--space-5);
   border-bottom: 1px solid var(--border);
+}
+.header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
 }
 .panel-header h3 {
   margin-top: var(--space-1);
@@ -288,12 +336,19 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
 .result-btn {
   justify-content: center;
   font-weight: 600;
+  border: 2px solid transparent;
 }
 .result-pass { color: var(--result-success-text); background: var(--result-success-bg); }
 .result-fail { color: var(--result-fail-text); background: var(--result-fail-bg); }
 .result-blocked { color: var(--result-block-text); background: var(--result-block-bg); }
 .result-not_run { color: var(--result-notrun-text); background: var(--result-notrun-bg); }
 .result-btn:hover { filter: brightness(0.95); }
+.result-btn.selected {
+  border-color: currentColor;
+}
+.hint {
+  margin: var(--space-2) 0 0;
+}
 .history {
   margin: 0;
   padding: 0;

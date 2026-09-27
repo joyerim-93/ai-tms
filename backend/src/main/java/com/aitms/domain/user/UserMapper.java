@@ -11,6 +11,9 @@ public interface UserMapper {
 
     Optional<User> findByLoginId(String loginId);
 
+    /** 로그인 가능(가입 완료)한 활성 사용자 전체 — 담당자 선택 등에서 사용, 이름순 */
+    List<UserSummary> findAllRegistered();
+
     /** 비밀번호가 아직 없는 로그인 가능 사용자(임시 guest- 계정 제외) — 기동 시 초기 비밀번호 설정 대상 */
     List<User> findWithoutPassword();
 

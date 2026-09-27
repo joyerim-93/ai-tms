@@ -4,7 +4,7 @@ import { projectApi } from '@/api/projects'
 import { useProjectStore } from '@/stores/projectStore'
 import BaseModal from '@/components/BaseModal.vue'
 
-// 프로젝트 등록 — 테스트케이스 화면에서만 노출 (헤더 선택기는 전환 전용)
+// 프로젝트 등록 — 헤더 ProjectSelector('+ 새 프로젝트 만들기')에서 열림
 const emit = defineEmits(['close'])
 const projectStore = useProjectStore()
 

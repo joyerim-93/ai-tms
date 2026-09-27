@@ -2,13 +2,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { cycleApi, executionApi } from '@/api/cycles'
-import { projectApi } from '@/api/projects'
 import { CYCLE_STATUS, RESULT, formatDateTime, progressRate } from '@/constants/labels'
 import ProgressBar from '@/components/ProgressBar.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ResultSelect from '@/components/ResultSelect.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
 import { formatParam } from '@/utils/params'
+import UserCombo from '@/components/UserCombo.vue'
+import { userApi } from '@/api/users'
 import TcPickerModal from './TcPickerModal.vue'
 import ExecutionPanel from './ExecutionPanel.vue'
 
@@ -18,10 +19,10 @@ const cycleId = Number(route.params.id)
 
 const cycle = ref(null)
 const executions = ref([])
-const members = ref([])
+const users = ref([]) // 가입된 사용자 전체 (담당자 선택 — 프로젝트 멤버 제한 없음)
 const filter = reactive({ keyword: '', result: '', assigneeId: '' })
 const selected = ref(new Set())
-const bulkAssignee = ref('')
+const bulkAssignee = ref(null)
 const showPicker = ref(false)
 // ?exec=<executionId> 로 진입하면 결과 입력 패널을 바로 연다 (대시보드 → 내 할일)
 const panelExecId = ref(Number(route.query.exec) || null)
@@ -76,7 +77,7 @@ function toggleAll() {
 
 function assignSelected() {
   run(async () => {
-    const { updated } = await cycleApi.assign(cycleId, [...selected.value], bulkAssignee.value || null)
+    const { updated } = await cycleApi.assign(cycleId, [...selected.value], bulkAssignee.value)
     await loadExecutions()
     message.value = `${updated}건 담당자를 변경했습니다.`
   })
@@ -154,7 +155,7 @@ async function onAdded(count) {
 
 onMounted(async () => {
   await reload()
-  if (cycle.value) members.value = await projectApi.members(cycle.value.projectId).catch(() => [])
+  if (cycle.value) users.value = await userApi.list().catch(() => [])
 })
 </script>
 
@@ -206,15 +207,12 @@ onMounted(async () => {
           </select>
           <select v-model="filter.assigneeId" class="select" @change="loadExecutions">
             <option value="">전체 담당자</option>
-            <option v-for="m in members" :key="m.userId" :value="m.userId">{{ m.name }}</option>
+            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.displayName }}</option>
           </select>
         </form>
         <div class="actions">
           <template v-if="selected.size && !closed">
-            <select v-model="bulkAssignee" class="select">
-              <option value="">담당자 해제</option>
-              <option v-for="m in members" :key="m.userId" :value="m.userId">{{ m.name }}</option>
-            </select>
+            <UserCombo v-model="bulkAssignee" :users="users" placeholder="담당자 해제" />
             <button class="btn" @click="assignSelected">선택 {{ selected.size }}건 담당자 지정</button>
           </template>
           <button class="btn btn-primary" :disabled="closed" @click="showPicker = true">+ TC 추가</button>
@@ -332,7 +330,7 @@ onMounted(async () => {
     v-if="showPicker"
     :cycle-id="cycleId"
     :project-id="cycle.projectId"
-    :members="members"
+    :users="users"
     :registered-tc-ids="registeredTcIds"
     @close="showPicker = false"
     @added="onAdded"
@@ -406,6 +404,7 @@ onMounted(async () => {
 .filters,
 .actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
 }
 .filters .input {

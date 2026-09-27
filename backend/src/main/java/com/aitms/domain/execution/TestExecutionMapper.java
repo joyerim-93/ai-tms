@@ -31,6 +31,10 @@ public interface TestExecutionMapper {
                      @Param("result") ExecutionResult result,
                      @Param("executedBy") Long executedBy);
 
+    int updateDraft(@Param("id") Long id,
+                    @Param("result") ExecutionResult result,
+                    @Param("comment") String comment);
+
     int delete(Long id);
 
     void insertHistory(ExecutionHistory history);

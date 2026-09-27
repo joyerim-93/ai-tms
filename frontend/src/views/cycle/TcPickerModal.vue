@@ -4,12 +4,14 @@ import { testCaseApi } from '@/api/testCases'
 import { cycleApi } from '@/api/cycles'
 import BaseModal from '@/components/BaseModal.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
+import UserCombo from '@/components/UserCombo.vue'
+import { userApi } from '@/api/users'
 import { useAuthStore } from '@/stores/authStore'
 
 const props = defineProps({
   cycleId: { type: Number, required: true },
   projectId: { type: Number, required: true }, // 차수 소속 프로젝트 — 같은 프로젝트 TC만 등록 가능
-  members: { type: Array, default: () => [] },
+  users: { type: Array, default: () => [] },   // 가입된 사용자 전체 (담당자 콤보) — [{ id, displayName }]
   registeredTcIds: { type: Set, default: () => new Set() },
 })
 const emit = defineEmits(['close', 'added'])
@@ -20,8 +22,8 @@ const items = ref([])
 const total = ref(0)
 const selected = ref(new Set())
 const auth = useAuthStore()
-// 담당자 기본값 = 로그인 사용자(프로젝트 멤버인 경우), 그 자리에서 다른 멤버로 변경 가능
-const assigneeId = ref(props.members.find((m) => m.userId === auth.user?.id)?.userId ?? '')
+// 담당자 기본값 = 로그인 사용자, 그 자리에서 다른 사람으로 변경(선택 또는 직접 입력) 가능
+const assigneeId = ref(auth.user?.id ?? null)
 const error = ref('')
 const saving = ref(false)
 
@@ -57,7 +59,7 @@ async function submit() {
   saving.value = true
   error.value = ''
   try {
-    const { added } = await cycleApi.addExecutions(props.cycleId, [...selected.value], assigneeId.value || null)
+    const { added } = await cycleApi.addExecutions(props.cycleId, [...selected.value], assigneeId.value)
     emit('added', added)
   } catch (e) {
     error.value = e.message
@@ -126,10 +128,7 @@ onMounted(async () => {
     <template #footer>
       <label class="assignee">
         담당자
-        <select v-model="assigneeId" class="select">
-          <option value="">미지정</option>
-          <option v-for="m in members" :key="m.userId" :value="m.userId">{{ m.name }} ({{ m.projectRole }})</option>
-        </select>
+        <UserCombo v-model="assigneeId" :users="users" placeholder="미지정" />
       </label>
       <div>
         <button class="btn" @click="emit('close')">취소</button>

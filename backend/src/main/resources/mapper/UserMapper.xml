@@ -6,6 +6,13 @@
         SELECT id, login_id, name, role, password, enabled FROM users WHERE login_id = #{loginId}
     </select>
 
+    <!-- password IS NOT NULL: 가입(로그인 가능) 완료한 사용자만 — 이전의 임시 guest-* 계정(비밀번호 없음)은 제외 -->
+    <select id="findAllRegistered" resultType="com.aitms.domain.user.UserSummary">
+        SELECT id, name AS display_name FROM users
+         WHERE password IS NOT NULL AND enabled = TRUE
+         ORDER BY name
+    </select>
+
     <select id="findWithoutPassword" resultType="com.aitms.domain.user.User">
         SELECT id, login_id, name, role, password, enabled FROM users
          WHERE password IS NULL AND login_id NOT LIKE 'guest-%'

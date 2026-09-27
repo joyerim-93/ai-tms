@@ -1,4 +1,5 @@
 <script setup>
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
@@ -9,7 +10,26 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+// 사용자명 클릭 → 로그아웃 드롭다운 (ProjectSelector와 같은 패턴: 바깥 클릭·Esc로 닫힘)
+const menuOpen = ref(false)
+const userRoot = ref(null)
+const closeOnOutside = (e) => {
+  if (userRoot.value && !userRoot.value.contains(e.target)) menuOpen.value = false
+}
+const closeOnEsc = (e) => {
+  if (e.key === 'Escape') menuOpen.value = false
+}
+onMounted(() => {
+  document.addEventListener('click', closeOnOutside)
+  document.addEventListener('keydown', closeOnEsc)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeOnOutside)
+  document.removeEventListener('keydown', closeOnEsc)
+})
+
 async function logout() {
+  menuOpen.value = false
   await auth.logout()
   router.push('/login')
 }
@@ -36,8 +56,21 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
       </nav>
       <ProjectSelector class="selector" />
       <ThemeToggle />
-      <span class="user-badge" :title="`${auth.user?.username} (${auth.user?.role})`">👤 {{ auth.currentUserName }}</span>
-      <button type="button" class="logout" @click="logout">로그아웃</button>
+      <div ref="userRoot" class="user-menu">
+        <button
+          type="button"
+          class="user-badge"
+          :title="`${auth.user?.username} (${auth.user?.role})`"
+          :aria-expanded="menuOpen"
+          aria-haspopup="menu"
+          @click="menuOpen = !menuOpen"
+        >
+          {{ auth.currentUserName }} 님
+        </button>
+        <ul v-if="menuOpen" class="menu-dropdown" role="menu">
+          <li role="menuitem" class="menu-option" @click="logout">로그아웃</li>
+        </ul>
+      </div>
     </div>
   </header>
 </template>
@@ -68,28 +101,49 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
 .selector {
   margin-left: auto;
 }
-.user-badge {
+.user-menu {
+  position: relative;
   align-self: center;
+}
+.user-badge {
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface-card);
   color: var(--text-primary);
+  font: inherit;
   font-size: var(--font-size-sm);
   white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--transition);
 }
-.logout {
-  align-self: center;
-  margin-left: calc(var(--space-4) * -1);
-  padding: var(--space-1) var(--space-2);
-  border: none;
-  background: none;
-  color: var(--text-secondary);
+.user-badge:hover,
+.user-badge[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 20;
+  min-width: 140px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-overlay);
+}
+.menu-option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
-  white-space: nowrap;
 }
-.logout:hover {
+.menu-option:hover {
+  background: var(--surface-hover);
   color: var(--accent);
 }
 .menu {
