@@ -18,5 +18,6 @@ export const cycleApi = {
 export const executionApi = {
   get: (id) => http(`/executions/${id}`),
   history: (id) => http(`/executions/${id}/history`),
-  record: (id, result, comment) => http(`/executions/${id}/results`, { method: 'POST', body: { result, comment } }),
+  record: (id, result, comment, userName) =>
+    http(`/executions/${id}/results`, { method: 'POST', body: { result, comment }, userName }),
 }

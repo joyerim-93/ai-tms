@@ -2,16 +2,17 @@
 defineProps({
   title: { type: String, required: true },
   width: { type: String, default: '720px' },
+  closable: { type: Boolean, default: true },   // false: ✕·바깥 클릭으로 닫히지 않음 (필수 입력 팝업)
 })
 const emit = defineEmits(['close'])
 </script>
 
 <template>
-  <div class="overlay" @click.self="emit('close')">
+  <div class="overlay" @click.self="closable && emit('close')">
     <div class="modal" :style="{ width }" role="dialog">
       <header class="modal-header">
         <h3>{{ title }}</h3>
-        <button class="btn btn-sm" @click="emit('close')">✕</button>
+        <button v-if="closable" class="btn btn-sm" @click="emit('close')">✕</button>
       </header>
       <div class="modal-body"><slot /></div>
       <footer v-if="$slots.footer" class="modal-footer"><slot name="footer" /></footer>

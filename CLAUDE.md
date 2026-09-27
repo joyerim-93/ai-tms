@@ -28,8 +28,9 @@ ai-tms/
 │     ├─ java/com/aitms/
 │     │  ├─ AiTmsApplication.java
 │     │  ├─ config/              WebConfig(CORS)  (ai-agent 호출용 HTTP 클라이언트 설정 예정)
-│     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser, Priority
+│     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser(ThreadLocal), CurrentUserFilter(X-User-Name), Priority
 │     │  └─ domain/              도메인별 패키지: VO/DTO · XxxMapper(@Mapper) · XxxService · XxxController
+│     │     ├─ user/             UserService.resolveByName(표시용 이름 → users), UserMapper
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
@@ -46,6 +47,7 @@ ai-tms/
    └─ src/
       ├─ styles/theme.css        디자인 토큰 v3 (docs/04-DESIGN-v3.md) — 라이트만, 다크는 추후 같은 변수명으로
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
+      ├─ stores/userStore.js     Pinia 표시용 사용자 이름: currentUserName(localStorage `aitms-user-name`), setName(). utils/userName.js 가 키·읽기 공유(http.js가 X-User-Name 헤더로 전송)
       ├─ stores/projectStore.js  Pinia 전역 프로젝트 컨텍스트: projects, currentProjectId(localStorage `aitms-project`), currentProject, loadProjects(), selectProject()
       ├─ layouts/AppLayout.vue   AppHeader + 가운데 정렬 콘텐츠(max 1120px). 기동 시 loadProjects(), 프로젝트 전환 시 차수/이슈 상세 화면이면 목록으로 이동
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
@@ -80,6 +82,11 @@ ai-tms/
 - **defect_comment**(defect_id, author_id, content, status_from/to)
 - 대시보드는 별도 테이블 없이 집계 쿼리.
 - 기타 enum: project.status `ACTIVE|CLOSED`, project_role `PM|DEV|BIZ|QA`, priority `HIGH|MEDIUM|LOW`, severity `CRITICAL|MAJOR|MINOR|TRIVIAL`. 모두 VARCHAR + CHECK 제약.
+
+### 담당자명(표시용, 인증 아님)
+- 첫 접속 시 이름이 없으면 닫을 수 없는 '이름을 입력해주세요' 팝업(`UserNameModal`, AppLayout), 헤더 우측 `👤 {이름} ✏️` 클릭으로 수정. 브라우저 localStorage에 유지.
+- 기본값으로 채워지는 곳(그 자리에서 수정 가능, 수정하면 **그 요청만** 그 이름으로 기록 — `http(..., {userName})`): TC 등록 팝업 '작성자', 결과 입력 패널 '실행자', 이슈 등록 '보고자'. 담당자(assignee)는 기본값 없이 직접 지정.
+- 모든 API 요청에 헤더가 실려 그 외 기록(코멘트 작성자, 승인/반려 검토자, 상태 변경 이력, 프로젝트 등록자 PM 등)도 입력한 이름 사용자로 남음. 이름이 같은 기존 사용자(예: 김큐에이)면 그 사용자, 없으면 `guest-` 임시 사용자 생성 — 프로젝트 멤버는 아니므로 담당자 후보 목록엔 나오지 않음. 대시보드 '내 할일'은 이 사용자 기준.
 
 ### 스키마/데이터 규칙
 - 스키마 변경 시 schema.sql 수정 → IF NOT EXISTS라 기존 DB엔 반영 안 됨 → 개발 중엔 `backend/data/` 삭제 후 재기동.
@@ -120,7 +127,7 @@ ai-tms/
 - 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
 - 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
 - 목록 API는 `PageResponse{items,total,page,size}` 반환, 검색 조건은 `XxxSearch`(page/size/getOffset).
-- 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (Security 도입 시 이 한 곳만 교체).
+- 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (Security 도입 시 이 한 곳만 교체). 지금은 **화면에 입력한 이름**이 `X-User-Name`(URL 인코딩) 헤더 → `CurrentUserFilter` → `UserService.resolveByName`(users.name 일치 사용자, 없으면 `guest-xxxx` 임시 사용자 QA 생성) → 요청 스레드의 CurrentUser. 헤더가 없으면 id 1. 필드는 기존 그대로(`author_id`, `executed_by`, `reporter_id`, 코멘트 author 등) — Security 도입 때 필터/`CurrentUser`만 교체하면 됨.
 - FK/UNIQUE 위반(DataIntegrityViolation)은 전역 핸들러에서 400 처리.
 - 모달은 `BaseModal`(title, width, #footer 슬롯), 상세 편집은 우측 슬라이드 패널(ExecutionPanel 패턴). 오버레이 색은 `--bg-overlay`, 그림자 `--shadow-overlay`.
 - 도메인 한 화면에서만 쓰는 하위 컴포넌트는 `views/<도메인>/`에 둠, 여러 곳에서 쓰면 `components/`.
@@ -260,6 +267,7 @@ npm run build
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
+- ✅ 담당자명 입력·유지(표시용): userStore, 헤더 배지, 첫 접속 팝업, X-User-Name 필터, TC 작성자/실행자/보고자 기본값 (테스트 72개)
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)

@@ -1,8 +1,14 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/userStore'
 import ProjectSelector from '@/components/ProjectSelector.vue'
+import UserNameModal from '@/components/UserNameModal.vue'
 
 const route = useRoute()
+const { currentUserName } = storeToRefs(useUserStore())
+const editingName = ref(false)
 
 const menus = [
   { to: '/', label: '대시보드' },
@@ -25,8 +31,12 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
         </RouterLink>
       </nav>
       <ProjectSelector class="selector" />
+      <button type="button" class="user-badge" title="이름 수정 (작성자·실행자·보고자에 표시)" @click="editingName = true">
+        👤 {{ currentUserName || '이름 입력' }} ✏️
+      </button>
     </div>
   </header>
+  <UserNameModal v-if="editingName" @close="editingName = false" />
 </template>
 
 <style scoped>
@@ -54,6 +64,20 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
 }
 .selector {
   margin-left: auto;
+}
+.user-badge {
+  align-self: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.user-badge:hover {
+  background: var(--surface-hover);
 }
 .menu {
   display: flex;

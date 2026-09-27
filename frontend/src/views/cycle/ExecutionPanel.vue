@@ -1,6 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/userStore'
 import { executionApi } from '@/api/cycles'
 import { testCaseApi } from '@/api/testCases'
 import { defectApi } from '@/api/defects'
@@ -22,6 +24,9 @@ const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
+const { currentUserName } = storeToRefs(useUserStore())
+const executor = ref(currentUserName.value) // 실행자(표시용) — 기본은 현재 사용자 이름, 그 자리에서 수정 가능
+watch(currentUserName, (v) => (executor.value = v))
 const defects = ref([]) // 이 수행 항목에 연결된 이슈
 const saving = ref(false)
 const error = ref('')
@@ -50,7 +55,7 @@ async function record(result) {
   saving.value = true
   error.value = ''
   try {
-    await executionApi.record(props.executionId, result, comment.value)
+    await executionApi.record(props.executionId, result, comment.value, executor.value)
     comment.value = ''
     await load()
     emit('recorded')
@@ -114,6 +119,10 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
 
           <section v-if="!readonly" class="block record">
             <div class="label">결과 입력</div>
+            <div class="executor">
+              <label class="label">실행자</label>
+              <input v-model="executor" class="input" maxlength="50" placeholder="이름" />
+            </div>
             <textarea v-model="comment" class="textarea" maxlength="2000" placeholder="코멘트 (선택)" />
             <div class="result-buttons">
               <button
@@ -291,6 +300,19 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-sm);
+}
+.executor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.executor .label {
+  margin: 0;
+  white-space: nowrap;
+}
+.executor .input {
+  max-width: 200px;
 }
 .comment {
   margin-top: var(--space-2);
