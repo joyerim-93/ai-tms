@@ -15,6 +15,7 @@ import com.aitms.common.Priority;
 import com.aitms.domain.recommend.RecommendationService;
 import com.aitms.domain.recommend.RecommendationResult;
 import com.aitms.domain.recommend.TcRecommendation;
+import com.aitms.domain.testcase.TcSource;
 import com.aitms.domain.testcase.TestCase;
 import com.aitms.domain.testcase.TestCaseService;
 
@@ -70,14 +71,18 @@ public class RequirementService {
         RecommendationResult result = recommendationService.recommend(id);
         List<TestCase> created = new ArrayList<>();
         int skipped = 0;
+        Map<Long, java.math.BigDecimal> scores = new java.util.LinkedHashMap<>();
         for (TcRecommendation rec : result.candidates()) {
             Optional<TestCase> tc = testCaseService.createDraft(rec, req.getProjectId());
             if (tc.isPresent()) {
                 created.add(tc.get());
+                if (rec.source() == TcSource.RAG) {
+                    scores.put(tc.get().getId(), rec.score());
+                }
             } else {
                 skipped++;
             }
         }
-        return new RecommendResponse(created, skipped, result.warnings());
+        return new RecommendResponse(created, skipped, result.warnings(), scores);
     }
 }

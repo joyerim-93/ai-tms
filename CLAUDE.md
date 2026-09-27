@@ -16,7 +16,7 @@
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
 | Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4, Pinia |
 | 인증 | 미적용. 추후 Spring Security (users 테이블만 미리 설계) |
-| AI 추천 | 3-1 규칙기반 ✅(`RuleBasedRecommendationService`). 3-2 RAG(전체 프로젝트 APPROVED TC 검색)·3-3 LLM(Claude API)은 예정 — `RecommendationService` 구현체 추가/합성 |
+| AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM(Claude API) 예정 — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
 
 > Initializr 기본값이 Boot 4.x라 `build.gradle`에서 3.5.x로 수동 고정했음 (mybatis-spring-boot-starter 3.0.x 호환).
 
@@ -33,7 +33,7 @@ ai-tms/
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
-│     │     ├─ recommend/        ✅ RecommendationService 인터페이스 + RuleBasedRecommendationService(3-1), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
+│     │     ├─ recommend/        ✅ RecommendationService(@Primary Composite) ← RecommendationEngine들: RuleBasedRecommendationService(3-1), RagRecommendationService(3-2, TcRetriever→KeywordTcRetriever/TextSimilarity, RagMapper), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
 │     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
 │     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
 │     │     └─ dashboard/        ✅ 대시보드 요약
@@ -161,7 +161,7 @@ ai-tms/
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
 | GET | `/api/requirements/atomics?projectId` | 프로젝트 원자 요구사항 전체(원문 코드·제목 포함) — TC 폼 선택용 |
-| POST | `/api/requirements/{id}/recommend` | 추천 실행 → 후보를 DRAFT TC로 저장(RULE, 미분류, 요구사항 링크, 데이터셋), 재실행 시 중복은 건너뜀 → `RecommendResponse{created, skipped, warnings}` |
+| POST | `/api/requirements/{id}/recommend` | 추천 실행(RULE+RAG) → 후보를 DRAFT TC로 저장(미분류, 요구사항 링크, 데이터셋), 재실행 시 중복은 건너뜀 → `RecommendResponse{created, skipped, warnings, scores}` (`scores` = RAG TC의 유사도, key=TC id) |
 | GET | `/api/rule-catalog` | 규칙 카탈로그 |
 
 ### 프로젝트 소유 · 중앙관리 규칙 (v4)
@@ -193,7 +193,8 @@ ai-tms/
 - 화면에서 직접 만든 TC = source MANUAL + APPROVED (검토 대상 아님). 출처·검토상태는 TC 수정 API로 못 바꿈.
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
 - 규칙기반(RULE) 추천 = **파라미터화 TC 1개 + 데이터셋 N행**. `[[text]] [[unit]] [[flag]] [[bonus]]`는 생성 시점에 원자 요구사항 값으로 치환, `{value} {option} {flag} {expected}`는 단계에 남는 데이터셋 변수. 범위 값 누락·규칙 없음은 `warnings`로 반환.
-- 저장은 `RequirementService.recommend`가 담당(`TestCaseService.createDraft`), 엔진은 후보(`TcRecommendation`)만 생성. RAG(3-2)·LLM(3-3)은 `RecommendationService` 구현체를 추가·합성. Noop 구현은 제거됨.
+- 저장은 `RequirementService.recommend`가 담당(`TestCaseService.createDraft`), 엔진은 후보(`TcRecommendation`)만 생성. 엔진 추가 = `RecommendationEngine` 빈 추가(LLM 3-3 예정).
+- **RAG(3-2) 규칙:** 검색 대상 = **현재 프로젝트를 제외한** 전체 프로젝트의 APPROVED·ACTIVE TC. 점수 = max(원자 텍스트↔TC 제목·모듈·태그, ↔TC가 검증하는 원자 요구사항 텍스트)의 글자 bigram Dice + 같은 요구사항 유형 +0.1, 임계 0.3 이상, 원자 요구사항당 상위 3건. 같은 원본 TC가 여러 원자에 걸리면 가장 유사한 원자 하나에만. 채택 시 원본의 단계·데이터셋을 복사한 DRAFT(source=RAG, origin_project_id=원본 프로젝트)로 저장하고 링크는 현재 원자 요구사항에 건다. 임베딩 도입 시 `TcRetriever` 구현체만 교체.
 
 ### 테스트수행 규칙
 - 결과 입력 시 수행자=CurrentUser, 차수가 PLANNED면 IN_PROGRESS로 자동 전환.
@@ -243,5 +244,6 @@ npm run build
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
-- ⏳ **다음: 3-2 RAG 추천**(전체 프로젝트 APPROVED TC 검색 → source=RAG, origin_project_id) → 3-3 LLM 신규 생성(Claude API)
+- ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
+- ⏳ **다음: 3-3 LLM 신규 생성**(Claude API, `RecommendationEngine` 추가) → ai-agent(FastAPI /decompose, 임베딩 RAG 교체)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

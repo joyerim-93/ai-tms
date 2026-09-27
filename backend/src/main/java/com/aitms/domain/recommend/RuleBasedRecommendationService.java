@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-public class RuleBasedRecommendationService implements RecommendationService {
+public class RuleBasedRecommendationService implements RecommendationEngine {
 
     private static final BigDecimal SCORE = BigDecimal.ONE;
 

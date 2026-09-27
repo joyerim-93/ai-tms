@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.recommend.RagMapper">
+
+    <select id="findCandidates" resultType="com.aitms.domain.recommend.RagCandidate">
+        SELECT tc.id, tc.project_id, tc.title, tc.module, tc.tags
+          FROM test_case tc
+         WHERE tc.project_id != #{excludeProjectId}
+           AND tc.status = 'ACTIVE'
+           AND tc.review_status = 'APPROVED'
+         ORDER BY tc.id
+    </select>
+
+    <select id="findLinks" resultType="com.aitms.domain.recommend.RagLink">
+        SELECT l.test_case_id, a.atomic_text, a.type
+          FROM test_case_requirement_link l
+          JOIN atomic_requirement a ON a.id = l.atomic_requirement_id
+          JOIN test_case tc         ON tc.id = l.test_case_id
+         WHERE tc.project_id != #{excludeProjectId}
+           AND tc.status = 'ACTIVE'
+           AND tc.review_status = 'APPROVED'
+         ORDER BY l.id
+    </select>
+</mapper>
