@@ -220,3 +220,16 @@ CREATE TABLE IF NOT EXISTS defect_comment (
     created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- AI 추천 실행 이력/상태 — POST /recommend 가 잡을 만들고 즉시 반환, 완료 시 SUCCEEDED/FAILED 로 갱신 (비동기 대비)
+CREATE TABLE IF NOT EXISTS recommendation_job (
+    id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+    requirement_id        BIGINT        NOT NULL REFERENCES requirement (id) ON DELETE CASCADE,  -- 실행 단위(원문 요구사항 → 원자 전체)
+    atomic_requirement_id BIGINT        REFERENCES atomic_requirement (id) ON DELETE CASCADE,    -- NULL = 요구사항 전체 (원자 단위 요청용 예약)
+    status                VARCHAR(10)   NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')),
+    started_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at           TIMESTAMP,
+    error_message         VARCHAR(1000),
+    result_json           TEXT                                                                   -- 성공 시 결과 요약 {createdIds, skipped, warnings, scores}
+);
+CREATE INDEX IF NOT EXISTS idx_rec_job_requirement ON recommendation_job (requirement_id, id);

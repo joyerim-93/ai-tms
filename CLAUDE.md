@@ -33,7 +33,7 @@ ai-tms/
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
-│     │     ├─ recommend/        ✅ RecommendationService(@Primary Composite) ← RecommendationEngine들: RuleBasedRecommendationService(3-1), RagRecommendationService(3-2, TcRetriever→KeywordTcRetriever/TextSimilarity, RagMapper), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
+│     │     ├─ recommend/        ✅ RecommendationService(@Primary Composite) ← RecommendationEngine들 + RecommendationJobService/Controller/Mapper(잡 상태): RuleBasedRecommendationService(3-1), RagRecommendationService(3-2, TcRetriever→KeywordTcRetriever/TextSimilarity, RagMapper), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
 │     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
 │     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
 │     │     └─ dashboard/        ✅ 대시보드 요약
@@ -52,7 +52,7 @@ ai-tms/
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
       ├─ components/             AppHeader(메뉴 + 우측 ProjectSelector), ProjectSelector(전환 전용 드롭다운), StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
       │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀, 더블클릭/우클릭 이름 수정),
-      │                          TestCaseKeyBadge(Key 표기), DatasetTable(변수=열·데이터=행 스프레드시트, 인라인 편집/읽기전용·강조 행), ResultSelect(결과 뱃지 클릭→드롭다운 즉시 기록)
+      │                          RecommendationStatusBadge(추천 잡 상태), TestCaseKeyBadge(Key 표기), DatasetTable(변수=열·데이터=행 스프레드시트, 인라인 편집/읽기전용·강조 행), ResultSelect(결과 뱃지 클릭→드롭다운 즉시 기록)
       ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
       ├─ utils/params.js         substitute/extractVariables/parseCell/braced — 파라미터화 {변수} 치환(프론트 담당)
       ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업) + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
@@ -162,7 +162,9 @@ ai-tms/
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
 | GET | `/api/requirements/atomics?projectId` | 프로젝트 원자 요구사항 전체(원문 코드·제목 포함) — TC 폼 선택용 |
-| POST | `/api/requirements/{id}/recommend` | 추천 실행(RULE+RAG) → 후보를 DRAFT TC로 저장(미분류, 요구사항 링크, 데이터셋), 재실행 시 중복은 건너뜀 → `RecommendResponse{created, skipped, warnings, scores}` (`scores` = RAG TC의 유사도, key=TC id) |
+| POST | `/api/requirements/{id}/recommend` | AI 추천 요청 → `recommendation_job`(RUNNING) 생성 후 **202로 잡 즉시 반환**, 추천(RULE+RAG)은 백그라운드 실행. 이미 진행 중인 잡이 있으면 그 잡 반환 |
+| GET | `/api/recommendation-jobs/{jobId}` | 잡 상태(PENDING/RUNNING/SUCCEEDED/FAILED, startedAt/finishedAt/errorMessage). SUCCEEDED면 `result{created, skipped, warnings, scores}`(=RecommendResponse) 포함 |
+| GET | `/api/recommendation-jobs/latest?requirementId` | 요구사항의 최근 잡 (없으면 204) — 화면 재진입 시 진행/실패 상태 복원 |
 | GET | `/api/rule-catalog` | 규칙 카탈로그 |
 
 ### 프로젝트 소유 · 중앙관리 규칙 (v4)
@@ -193,6 +195,8 @@ ai-tms/
 - '다른 프로젝트에서 가져오기' 검색은 `keywordInProjectName=true`로 키워드를 **프로젝트명에도 LIKE** 적용(제목·코드·태그·프로젝트명). 일반 목록 검색은 프로젝트명 조건을 쓰지 않음.
 
 ### AI 추천/검토 규칙
+- **추천 잡(recommendation_job):** `RecommendationJobService.start` 가 RUNNING 잡을 만들어 즉시 반환하고 `recommendationExecutor`(스레드풀 2~4)에서 `RequirementService.recommend`를 실행 → 끝나면 SUCCEEDED(결과 요약 `result_json`)/FAILED(`error_message`)로 갱신. 잡 갱신은 추천 트랜잭션과 분리. 서버 시작 시 끝나지 못한 잡은 FAILED 처리. 상태 enum은 프로젝트 규칙대로 대문자. `atomic_requirement_id`는 NULL=요구사항 전체(현재 항상 NULL, 원자 단위 요청용 예약) — 실행 단위 컬럼은 `requirement_id`.
+- **화면(요구사항 탭):** '✨ AI 추천 요청' → 잡 생성 → 2초 폴링. `RecommendationStatusBadge`(진행 중 스피너 / 실패 시 클릭 재요청)를 요구사항 행과 원자 요구사항 행에 표시, 성공하면 뱃지 제거 + 결과(생성 DRAFT TC·유사도) 표시 + 목록/커버 TC 자동 새로고침. 재진입 시 latest 잡으로 복원.
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
 - 화면에서 직접 만든 TC = source MANUAL + APPROVED (검토 대상 아님). 출처·검토상태는 TC 수정 API로 못 바꿈.
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
@@ -248,6 +252,7 @@ npm run build
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
+- ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ⏳ **다음: 3-3 LLM 신규 생성**(Claude API, `RecommendationEngine` 추가) → ai-agent(FastAPI /decompose, 임베딩 RAG 교체)
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

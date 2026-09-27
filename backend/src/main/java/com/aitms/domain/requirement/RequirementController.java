@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 
+import com.aitms.domain.recommend.RecommendationJob;
+import com.aitms.domain.recommend.RecommendationJobService;
+
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -22,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 public class RequirementController {
 
     private final RequirementService service;
+    private final RecommendationJobService jobService;
 
     @GetMapping
     public List<Requirement> list(@RequestParam Long projectId) {
@@ -45,8 +49,10 @@ public class RequirementController {
         return service.create(req);
     }
 
+    /** AI 추천 요청 — 잡(RUNNING)을 만들어 즉시 반환(202). 진행/결과는 GET /api/recommendation-jobs/{id} 로 폴링. */
     @PostMapping("/{id}/recommend")
-    public RecommendResponse recommend(@PathVariable Long id) {
-        return service.recommend(id);
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public RecommendationJob recommend(@PathVariable Long id) {
+        return jobService.start(id);
     }
 }

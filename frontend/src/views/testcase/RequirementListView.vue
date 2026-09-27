@@ -1,12 +1,13 @@
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
-import { requirementApi, ruleCatalogApi } from '@/api/requirements'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { recommendationJobApi, requirementApi, ruleCatalogApi } from '@/api/requirements'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/projectStore'
 import { useRoute } from 'vue-router'
 import { PRIORITY, REQUIREMENT_TYPE, REVIEW_STATUS, TC_SOURCE, TECHNIQUE } from '@/constants/labels'
 import PriorityChip from '@/components/PriorityChip.vue'
 import LabelChip from '@/components/LabelChip.vue'
+import RecommendationStatusBadge from '@/components/RecommendationStatusBadge.vue'
 import RepoTabs from './RepoTabs.vue'
 
 // 요구사항 원문 → 원자 요구사항(AI 분해) → 규칙/RAG/LLM 추천 TC 흐름의 입구
@@ -19,7 +20,6 @@ const rulesByType = ref({})
 const showForm = ref(false)
 const form = reactive({ title: '', priority: 'MEDIUM', description: '' })
 const error = ref('')
-const message = ref('')
 
 async function load() {
   if (!projectId.value) return
@@ -36,7 +36,6 @@ async function toggle(r) {
     expanded.value = null
     return
   }
-  message.value = ''
   try {
     expanded.value = await requirementApi.get(r.id)
   } catch (e) {
@@ -56,26 +55,72 @@ async function create() {
   }
 }
 
-// 추천(규칙기반 RULE + RAG: 다른 프로젝트 유사 TC) → DRAFT TC 생성 (미분류 폴더). 결과는 펼친 요구사항 안에 표시
-const recommending = ref(false)
-const recommendResult = ref(null) // { created, skipped, warnings }
-async function recommend(id) {
-  error.value = ''
-  message.value = ''
-  recommending.value = true
-  try {
-    recommendResult.value = await requirementApi.recommend(id)
-    const { created, skipped } = recommendResult.value
-    message.value = created.length
+// AI 추천 요청(규칙기반 RULE + RAG) → 잡 생성 → 2초마다 상태 폴링 → 완료되면 DRAFT TC 결과 표시 + 목록 새로고침
+const POLL_MS = 2000
+const jobs = reactive({})     // requirementId → 최근 잡 { id, status, errorMessage, result }
+const results = reactive({})  // requirementId → 완료된 추천 결과 { message, created, skipped, warnings, scores }
+const timers = {}
+
+const isActive = (job) => job?.status === 'PENDING' || job?.status === 'RUNNING'
+
+function stopPolling(reqId) {
+  clearInterval(timers[reqId])
+  delete timers[reqId]
+}
+function stopAllPolling() {
+  Object.keys(timers).forEach(stopPolling)
+}
+
+function poll(reqId, jobId) {
+  stopPolling(reqId)
+  timers[reqId] = setInterval(async () => {
+    try {
+      const job = await recommendationJobApi.get(jobId)
+      jobs[reqId] = job
+      if (isActive(job)) return
+      stopPolling(reqId)
+      if (job.status === 'SUCCEEDED') await onSucceeded(reqId, job)
+    } catch (e) {
+      stopPolling(reqId)
+      error.value = e.message
+    }
+  }, POLL_MS)
+}
+
+async function onSucceeded(reqId, job) {
+  const { created, skipped } = job.result
+  results[reqId] = {
+    ...job.result,
+    message: created.length
       ? `추천으로 검토대기(DRAFT) 테스트케이스 ${created.length}건을 만들었습니다${skipped ? ` (이미 있는 ${skipped}건 제외)` : ''}. 검토 후 승인하세요.`
-      : `새로 만들 추천이 없습니다${skipped ? ` — 같은 추천 TC ${skipped}건이 이미 있습니다` : ''}.`
-    await load()
-    expanded.value = await requirementApi.get(id) // 커버 TC 목록 갱신
+      : `새로 만들 추천이 없습니다${skipped ? ` — 같은 추천 TC ${skipped}건이 이미 있습니다` : ''}.`,
+  }
+  await load() // 커버리지·연결 TC 수 갱신
+  if (expanded.value?.id === reqId) expanded.value = await requirementApi.get(reqId) // 원자별 커버 TC 목록 갱신
+}
+
+async function recommend(reqId) {
+  error.value = ''
+  delete results[reqId]
+  try {
+    const job = await requirementApi.recommend(reqId)
+    jobs[reqId] = job
+    poll(reqId, job.id)
   } catch (e) {
     error.value = e.message
-  } finally {
-    recommending.value = false
   }
+}
+
+// 화면 진입/새로고침 시: 진행 중이던 잡은 폴링 재개, 마지막 잡이 실패면 실패 뱃지 복원
+async function restoreJobs() {
+  await Promise.all(
+    requirements.value.map(async (r) => {
+      const job = await recommendationJobApi.latest(r.id).catch(() => null)
+      if (!job || job.status === 'SUCCEEDED') return
+      jobs[r.id] = job
+      if (isActive(job)) poll(r.id, job.id)
+    }),
+  )
 }
 
 const range = (a) => {
@@ -86,11 +131,17 @@ const range = (a) => {
 // ?req=<requirementId> 로 진입하면 해당 요구사항을 펼침 (TC 상세 → 요구사항 Traceability)
 watch(projectId, async (next, prev) => {
   expanded.value = null
+  stopAllPolling()
+  Object.keys(jobs).forEach((k) => delete jobs[k])
+  Object.keys(results).forEach((k) => delete results[k])
   await load()
+  restoreJobs()
   const reqId = Number(route.query.req)
   const target = !prev && reqId ? requirements.value.find((r) => r.id === reqId) : null
   if (target) toggle(target)
 }, { immediate: true })
+
+onBeforeUnmount(stopAllPolling)
 
 onMounted(async () => {
   const rules = await ruleCatalogApi.list().catch(() => [])
@@ -150,7 +201,10 @@ onMounted(async () => {
         <template v-for="r in requirements" :key="r.id">
           <tr class="clickable" :class="{ selected: expanded?.id === r.id }" @click="toggle(r)">
             <td class="mono">{{ r.reqCode }}</td>
-            <td>{{ r.title }}</td>
+            <td>
+              {{ r.title }}
+              <RecommendationStatusBadge :status="jobs[r.id]?.status" :error-message="jobs[r.id]?.errorMessage" @retry="recommend(r.id)" />
+            </td>
             <td><PriorityChip :priority="r.priority" /></td>
             <td>
               <span :class="r.atomicCount && r.coveredAtomicCount === r.atomicCount ? 'covered' : 'uncovered-text'">
@@ -166,26 +220,26 @@ onMounted(async () => {
               <div class="detail">
                 <div class="detail-head">
                   <div class="label">원문</div>
-                  <button class="btn btn-sm btn-primary" :disabled="recommending" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC). LLM 신규 생성은 추후" @click="recommend(r.id)">
-                    ✨ {{ recommending ? '추천 중…' : 'AI 추천 실행' }}
+                  <button class="btn btn-sm btn-primary" :disabled="isActive(jobs[r.id])" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC). LLM 신규 생성은 추후" @click="recommend(r.id)">
+                    ✨ AI 추천 요청
                   </button>
                 </div>
                 <p class="pre raw">{{ expanded.description }}</p>
-                <div v-if="message" class="message">
-                  {{ message }}
-                  <ul v-if="recommendResult?.created.length" class="created">
-                    <li v-for="t in recommendResult.created" :key="t.id">
+                <div v-if="results[r.id]" class="message">
+                  {{ results[r.id].message }}
+                  <ul v-if="results[r.id].created.length" class="created">
+                    <li v-for="t in results[r.id].created" :key="t.id">
                       <RouterLink :to="`/test-cases/${t.id}?tab=dataset`" class="mono">{{ t.tcCode }}</RouterLink>
                       {{ t.title }}
                       <LabelChip :map="TC_SOURCE" :value="t.source" />
                       <span v-if="t.datasets.length" class="chip chip-accent">🔢 {{ t.datasets.length }}</span>
-                      <span v-if="recommendResult.scores?.[t.id] != null" class="muted">
-                        유사도 {{ Math.round(recommendResult.scores[t.id] * 100) }}% · 출처 {{ t.originProjectName }}
+                      <span v-if="results[r.id].scores?.[t.id] != null" class="muted">
+                        유사도 {{ Math.round(results[r.id].scores[t.id] * 100) }}% · 출처 {{ t.originProjectName }}
                       </span>
                     </li>
                   </ul>
-                  <ul v-if="recommendResult?.warnings.length" class="warnings">
-                    <li v-for="w in recommendResult.warnings" :key="w">⚠ {{ w }}</li>
+                  <ul v-if="results[r.id].warnings.length" class="warnings">
+                    <li v-for="w in results[r.id].warnings" :key="w">⚠ {{ w }}</li>
                   </ul>
                 </div>
 
@@ -205,6 +259,7 @@ onMounted(async () => {
                       <td><span class="chip chip-accent">{{ REQUIREMENT_TYPE[a.type] }}</span></td>
                       <td>
                         {{ a.atomicText }}
+                        <RecommendationStatusBadge :status="jobs[r.id]?.status" :error-message="jobs[r.id]?.errorMessage" @retry="recommend(r.id)" />
                         <div v-if="a.conditions" class="mono muted small">{{ a.conditions }}</div>
                       </td>
                       <td class="small">{{ range(a) }}</td>

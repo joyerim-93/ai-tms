@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitms.domain.recommend.RecommendationJobMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO recommendation_job (requirement_id, atomic_requirement_id, status)
+        VALUES (#{requirementId}, #{atomicRequirementId}, #{status})
+    </insert>
+
+    <select id="findById" resultType="com.aitms.domain.recommend.RecommendationJob">
+        SELECT * FROM recommendation_job WHERE id = #{id}
+    </select>
+
+    <select id="findActive" resultType="com.aitms.domain.recommend.RecommendationJob">
+        SELECT * FROM recommendation_job
+         WHERE requirement_id = #{requirementId} AND status IN ('PENDING', 'RUNNING')
+         ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="findLatest" resultType="com.aitms.domain.recommend.RecommendationJob">
+        SELECT * FROM recommendation_job
+         WHERE requirement_id = #{requirementId}
+         ORDER BY id DESC LIMIT 1
+    </select>
+
+    <update id="finish">
+        UPDATE recommendation_job
+           SET status = #{status}, finished_at = CURRENT_TIMESTAMP,
+               error_message = #{errorMessage}, result_json = #{resultJson}
+         WHERE id = #{id}
+    </update>
+
+    <update id="failActive">
+        UPDATE recommendation_job
+           SET status = 'FAILED', finished_at = CURRENT_TIMESTAMP, error_message = #{errorMessage}
+         WHERE status IN ('PENDING', 'RUNNING')
+    </update>
+</mapper>
