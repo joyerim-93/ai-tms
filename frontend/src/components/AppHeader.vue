@@ -34,7 +34,7 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
         </RouterLink>
       </nav>
       <ProjectSelector class="selector" />
-      <span class="user-badge" :title="`${auth.user?.loginId} (${auth.user?.role})`">👤 {{ auth.currentUserName }}</span>
+      <span class="user-badge" :title="`${auth.user?.username} (${auth.user?.role})`">👤 {{ auth.currentUserName }}</span>
       <button type="button" class="logout" @click="logout">로그아웃</button>
     </div>
   </header>

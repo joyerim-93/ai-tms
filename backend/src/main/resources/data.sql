@@ -11,6 +11,10 @@ INSERT IGNORE INTO users (id, login_id, name, email, role) VALUES
     (4, 'biz.choi', '최현업',   'biz.choi@aitms.local', 'BIZ'),
     (5, 'admin',    '관리자',   'admin@aitms.local',    'ADMIN');
 
+-- 로그인 시드 계정: username=3171613 / password=3171613 (BCrypt 해시로 저장 — 개발용, 운영에서는 변경/삭제)
+INSERT IGNORE INTO users (login_id, name, role, password) VALUES
+    ('3171613', '3171613', 'QA', '$2a$10$TVu5Zo1PFdF57jZT/82iTuZVAkPzyxrf9IOyydsYpYrdJ.Z.pDDI.');
+
 -- 2. 프로젝트
 INSERT IGNORE INTO project (id, code, name, description, status, start_date, end_date) VALUES
     (1, 'KB-SAVING', 'KB 적금 통장 신설',

@@ -11,6 +11,11 @@
          WHERE password IS NULL AND login_id NOT LIKE 'guest-%'
     </select>
 
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO users (login_id, name, role, password, enabled)
+        VALUES (#{loginId}, #{name}, #{role}, #{password}, TRUE)
+    </insert>
+
     <update id="updatePassword">
         UPDATE users SET password = #{password}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}
     </update>

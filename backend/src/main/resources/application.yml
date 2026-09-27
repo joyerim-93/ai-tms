@@ -38,6 +38,7 @@ app:
   upload:
     dir: ./uploads            # 첨부파일 저장 루트 (backend 실행 위치 기준, git 제외) — DB에는 이 아래의 상대 경로만 저장
   security:
+    registration-enabled: true    # 회원가입(POST /api/auth/register) 허용 — 외부에 노출하는 환경에서는 false
     # 비밀번호가 없는 사용자(샘플 사용자 등)에게 기동 시 넣는 초기 비밀번호 — 개발용, 운영에서는 반드시 변경/제거
     initial-password: aitms1234!
   ai:

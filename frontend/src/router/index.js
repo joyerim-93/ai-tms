@@ -6,6 +6,7 @@ const DefectForm = () => import('@/views/defect/DefectFormView.vue')
 
 const routes = [
   { path: '/login', component: () => import('@/views/LoginView.vue'), meta: { title: '로그인', public: true } },
+  { path: '/register', component: () => import('@/views/RegisterView.vue'), meta: { title: '회원가입', public: true } },
   {
     path: '/',
     component: AppLayout,
@@ -62,7 +63,7 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.loaded) await auth.loadMe()
   if (!auth.user && !to.meta.public) return { path: '/login', query: { redirect: to.fullPath } }
-  if (auth.user && to.path === '/login') return '/'
+  if (auth.user && (to.path === '/login' || to.path === '/register')) return '/'
 })
 
 export default router

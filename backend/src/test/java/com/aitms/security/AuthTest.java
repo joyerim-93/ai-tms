@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -62,7 +63,7 @@ class AuthTest {
         MockHttpSession session = login("qa.kim", PASSWORD);
 
         mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("qa.kim")).andExpect(jsonPath("$.name").value("김큐에이"))
+                .andExpect(jsonPath("$.username").value("qa.kim")).andExpect(jsonPath("$.displayName").value("김큐에이"))
                 .andExpect(jsonPath("$.role").value("QA")).andExpect(jsonPath("$.password").doesNotExist());
         mvc.perform(get("/api/projects").session(session)).andExpect(status().isOk());
     }
@@ -105,5 +106,60 @@ class AuthTest {
         mvc.perform(get("/h2-console/")).andExpect(status().isUnauthorized());
         assertThat(login("qa.kim", PASSWORD)).isNotNull();
         mvc.perform(get("/h2-console/").session(login("qa.kim", PASSWORD))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 시드_계정_3171613으로_로그인할_수_있고_username_필드도_받는다() throws Exception {
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"3171613\",\"password\":\"3171613\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("3171613"));
+        assertThat(jdbc.queryForObject("SELECT password FROM users WHERE login_id = '3171613'", String.class)).startsWith("$2a$");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions register(String username, String password, String displayName) throws Exception {
+        return mvc.perform(post("/api/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\",\"display_name\":\"" + displayName + "\"}"));
+    }
+
+    @Test
+    void 회원가입하면_BCrypt로_저장되고_바로_로그인할_수_있다() throws Exception {
+        register("newbie01", "pass1234!", "새내기").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("newbie01")).andExpect(jsonPath("$.displayName").value("새내기"))
+                .andExpect(jsonPath("$.role").value("QA")).andExpect(jsonPath("$.password").doesNotExist());
+        String hash = jdbc.queryForObject("SELECT password FROM users WHERE login_id = 'newbie01'", String.class);
+        assertThat(hash).startsWith("$2a$").doesNotContain("pass1234!");
+
+        MockHttpSession session = login("newbie01", "pass1234!");
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(jsonPath("$.displayName").value("새내기"));
+    }
+
+    @Test
+    void 회원가입_검증_중복_아이디_짧은_비밀번호_잘못된_아이디() throws Exception {
+        register("qa.kim", "pass1234!", "중복").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("이미 사용 중인 아이디입니다."));
+        register("ok_user", "short", "짧음").andExpect(status().isBadRequest());
+        register("bad user!", "pass1234!", "공백").andExpect(status().isBadRequest());
+        register("ab", "pass1234!", "짧은 아이디").andExpect(status().isBadRequest());
+        register("nameless", "pass1234!", " ").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 회원가입은_로그인_없이_가능하지만_CSRF는_필요하다() throws Exception {
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"nocsrf\",\"password\":\"pass1234!\",\"displayName\":\"x\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void CORS는_프론트_출처에_자격증명_쿠키를_허용한다() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/api/auth/login")
+                        .header("Origin", "http://localhost:5173").header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type,x-xsrf-token"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        mvc.perform(get("/api/auth/me").header("Origin", "http://localhost:5173"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));   // 401 응답에도 CORS 헤더가 있어야 브라우저가 읽을 수 있음
     }
 }

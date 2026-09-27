@@ -44,6 +44,7 @@ async function submit() {
       <button class="btn btn-primary submit" :disabled="loading || !loginId || !password">
         {{ loading ? '로그인 중…' : '로그인' }}
       </button>
+      <p class="muted alt">계정이 없으신가요? <RouterLink :to="{ path: '/register', query: route.query }">회원가입</RouterLink></p>
     </form>
   </div>
 </template>
@@ -76,5 +77,14 @@ async function submit() {
 .submit {
   width: 100%;
   margin-top: var(--space-4);
+}
+.alt {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+.alt a {
+  color: var(--accent);
+  font-weight: 600;
 }
 </style>

@@ -86,12 +86,15 @@ ai-tms/
 - 기타 enum: project.status `ACTIVE|CLOSED`, project_role `PM|DEV|BIZ|QA`, priority `HIGH|MEDIUM|LOW`, severity `CRITICAL|MAJOR|MINOR|TRIVIAL`. 모두 VARCHAR + CHECK 제약.
 
 ### 인증 (Spring Security, 2026-09-27)
-- **세션 기반 로그인**: `POST /api/auth/login {loginId, password}` → 세션 쿠키(HttpOnly, SameSite=Lax, 8h) + `{id, loginId, name, role}`, `GET /api/auth/me`, `POST /api/auth/logout`(204). 실패는 계정 존재 여부와 무관하게 같은 401 메시지. 비밀번호는 **BCrypt**(`users.password`), 비밀번호 없는 계정(임시 `guest-*` 등)은 로그인 불가. 로그인 시 세션 ID 재발급(세션 고정 방지).
-- **`/api/**` 전부 로그인 필수**(401 `{message}`), `/api/auth/login`·`/error`만 공개. `/h2-console/**`은 **ADMIN 역할만**. 그 외 역할별 권한(RBAC)은 아직 없음 — 인증만 적용(역할 DEV/BIZ/QA/ADMIN은 principal 에 `ROLE_xxx`로 실려 있음).
+- **세션 기반 로그인**: `POST /api/auth/login {username, password}`(`loginId`도 허용) → 세션 쿠키(HttpOnly, SameSite=Lax, 8h) + `{id, username, displayName, role}`, `GET /api/auth/me`, `POST /api/auth/logout`(204). **계정 테이블은 기존 `users` 하나를 씀**(username=`login_id`, displayName=`name`, password=BCrypt `password`) — 별도 `app_user` 테이블은 만들지 않음(작성자/실행자 등 모든 FK가 users를 참조). 실패는 계정 존재 여부와 무관하게 같은 401 메시지. 비밀번호는 **BCrypt**(`users.password`), 비밀번호 없는 계정(임시 `guest-*` 등)은 로그인 불가. 로그인 시 세션 ID 재발급(세션 고정 방지).
+- **회원가입** `POST /api/auth/register {username, password, displayName(display_name도 허용)}` → 201, 기본 역할 QA, 비밀번호 BCrypt. 검증: 아이디 3~50자 `[A-Za-z0-9._-]`, 비밀번호 8~64자, 표시 이름 필수(50자), 중복 아이디 409. **누구나 가입 가능**(로그인 불필요) — 외부 노출 환경에서는 `app.security.registration-enabled: false`. 화면은 가입 직후 자동 로그인.
+- **`/api/**` 전부 로그인 필수**(401 `{message}`), `/api/auth/login`·`/api/auth/register`·`/error`만 공개. `/h2-console/**`은 **ADMIN 역할만**. 그 외 역할별 권한(RBAC)은 아직 없음 — 인증만 적용(역할 DEV/BIZ/QA/ADMIN은 principal 에 `ROLE_xxx`로 실려 있음).
 - **CSRF**: 서버가 `XSRF-TOKEN` 쿠키를 내려주고 `http.js`가 GET 외 요청에 `X-XSRF-TOKEN` 헤더로 되돌려 보냄(없으면 403).
+- **시드 계정**: `3171613` / `3171613`(역할 QA, data.sql에 BCrypt 해시로 저장). 개발용 — 운영에서는 삭제/변경.
+- **CORS**: `WebConfig`가 `allowCredentials(true)`(+`Security .cors()`)로 프론트 출처(`app.cors.allowed-origins`)에 쿠키를 허용, 프론트는 `credentials:'include'`. 개발 기본은 Vite 프록시(같은 출처).
 - **초기 비밀번호(개발용)**: 기동 시 비밀번호가 없는 사용자에게 `app.security.initial-password`(기본 `aitms1234!`)를 BCrypt 로 설정(`PasswordBootstrap`, WARN 로그). 샘플 계정: `qa.kim`(김큐에이·QA) `dev.park`(박개발·DEV) `qa.lee`(이큐에이·QA) `biz.choi`(BIZ) `admin`(ADMIN). **운영에서는 반드시 변경/제거.** 회원가입·비밀번호 변경·계정관리 화면은 아직 없음.
 - `CurrentUser.id()` = 세션 principal(`AuthUser`)의 id. 인증 컨텍스트가 없는 곳(서비스 테스트, 추천 백그라운드 스레드)만 기본 사용자 id 1로 대체. 작성자·실행자·보고자·검토자·코멘트 작성자·프로젝트 등록자(PM)는 모두 로그인 사용자로 서버가 기록 — 화면의 작성자/실행자/보고자는 **읽기 전용 표시**(직접 입력 불가).
-- 프론트: `authStore`(user, loadMe/login/logout), 라우터 가드(비로그인 → `/login?redirect=`), `http.js`가 401 을 받으면 로그인 화면으로. TC 차수 TC 추가 팝업의 담당자 기본값 = 로그인 사용자(멤버인 경우, 변경 가능).
+- 프론트: `authStore`(user, currentUserName=displayName, loadMe/login/register/logout), `LoginView`·`RegisterView`, CSRF 쿠키가 없으면(로그아웃 직후) `http.js`가 GET 한 번으로 새 토큰을 받은 뒤 전송, 라우터 가드(비로그인 → `/login?redirect=`), `http.js`가 401 을 받으면 로그인 화면으로. TC 차수 TC 추가 팝업의 담당자 기본값 = 로그인 사용자(멤버인 경우, 변경 가능).
 - (이력) 로그인 도입 전 임시로 '화면에 입력한 이름 → X-User-Name 헤더' 방식(userStore, 이름 입력 팝업, guest 사용자)을 썼으나 로그인으로 대체하며 제거함.
 
 ### 스키마/데이터 규칙
