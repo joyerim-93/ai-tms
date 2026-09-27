@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import ProjectSelector from '@/components/ProjectSelector.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,7 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
         </RouterLink>
       </nav>
       <ProjectSelector class="selector" />
+      <ThemeToggle />
       <span class="user-badge" :title="`${auth.user?.username} (${auth.user?.role})`">👤 {{ auth.currentUserName }}</span>
       <button type="button" class="logout" @click="logout">로그아웃</button>
     </div>

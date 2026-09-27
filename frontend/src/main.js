@@ -6,6 +6,9 @@ import router from './router'
 import { createPinia } from 'pinia'
 import { setUnauthorizedHandler } from '@/api/http'
 import { useAuthStore } from '@/stores/authStore'
+import { applyTheme, resolveInitialTheme } from '@/utils/theme'
+
+applyTheme(resolveInitialTheme()) // 마운트 전에 적용해 깜빡임(FOUC) 방지
 
 const pinia = createPinia()
 createApp(App).use(pinia).use(router).mount('#app')

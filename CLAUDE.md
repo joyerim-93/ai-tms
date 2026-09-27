@@ -107,13 +107,14 @@ ai-tms/
 
 ## 디자인 v3 (docs/04-DESIGN-v3.md, docs/dashboard-reference.jpg)
 - **레이아웃:** 좌측 사이드바 폐기 → 상단 `AppHeader`(로고 AI-TMS + 탭 4개: 대시보드/테스트케이스/테스트 수행/이슈관리, 활성 탭 `--accent` 밑줄) + 헤더 우측 `ProjectSelector` 드롭다운(v4: **전환만**, 등록은 테스트케이스 화면에서만). 페이지 제목(h1) 없음.
-- **라이트 모드만.** 테마 토글·useTheme 제거. 다크는 theme.css 하단 `[data-theme='dark']`에 **같은 변수명**으로 값만 추가.
+- **라이트+다크 모두 지원(2026-09-27~).** 토글은 헤더의 `ThemeToggle`(☀️/🌙), 상태는 `<html data-theme>` + localStorage(`aitms-theme`, 없으면 OS 설정), 적용은 `utils/theme.js`. `main.js`가 마운트 전에 적용해 깜빡임 방지. 색 값은 `theme.css` 하단 `[data-theme='dark']`에 **같은 변수명**으로만 정의(컴포넌트 수정 없음).
 
 ### 토큰 (`frontend/src/styles/theme.css`)
 1) 문서 정의(그대로 유지): `--surface-page #F5F6FA`, `--surface-card #FFF`, `--border #E7E8EF`, `--text-primary #1F2430`, `--text-secondary #6B7280`, `--text-muted #9CA3AF`, `--accent #4F5FF0`, `--accent-soft #EEF0FE`,
    `--badge-{open|progress|resolved|closed}-{bg|text}`(이슈: 빨강/노랑/초록/회색), `--result-{success|fail|block|notrun}-{bg|text}`(결과: 초록/빨강/**노랑**/**회색**), `--radius-card 12px`, `--shadow-card`
 2) 확장(문서에 없는 UI용): `--surface-hover`, `--surface-muted`(pill 트랙), `--accent-hover`, `--on-accent`, `--overlay`, `--shadow-overlay`, `--priority-{high|medium|low}-{bg|text}`(=fail/block/notrun)
-3) 레이아웃: `--header-height`, `--content-max-width`, `--space-1..6`(4~32px), `--radius-sm|md|pill`, `--font-size-xs..xl`, `--font-size-stat`(32px), `--font-sans`, `--font-mono`
+3) 레이아웃: `--header-height`, `--content-max-width`, `--space-1..6`(4~32px), `--radius-sm|md|pill`, `--font-size-xs..xl`, `--font-size-stat`(32px), `--font-sans`, `--font-mono` (테마 무관, 다크에서 재정의 안 함)
+4) **다크 팔레트**: surface는 네이비(`#17172A`/`#1E1E33`), 배지·결과 색은 원래 색의 낮은 투명도 bg + 밝힌 text(대비 확보, `result-*`는 `badge-*`를 그대로 참조), accent는 `#6C7BFF`(라이트보다 밝게). 우선순위 칩은 `var()` 참조라 재정의 불필요.
 
 ### 상태 뱃지 (`StatusBadge.vue` 하나로 공용)
 | status | 표시 | 톤 |
@@ -128,7 +129,7 @@ ai-tms/
 - 데스크탑 전용(min-width 1200px), 반응형 고려하지 않음.
 - 테스트 결과·이슈 상태·차수 상태는 모두 `<StatusBadge :status />`, 우선순위는 `<PriorityChip />`, 심각도·출처·검토상태는 `<LabelChip :map :value />`.
 - 요약 카드는 `<StatCard title value unit sub />` 재사용 (다른 화면 상단 요약에도 사용 예정).
-- 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
+- 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text .stat-row`(StatCard 4열 그리드, 화면 상단 요약). 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
 - 프로젝트 종속 화면: `const { currentProjectId: projectId } = storeToRefs(useProjectStore())` + `watch(projectId, load, { immediate: true })`. 선택 변경은 `projectStore.selectProject(id)`로만.
 - 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트). **예외: 테스트케이스는 등록/수정을 라우트 없이 `TestCaseFormModal` 팝업으로 처리**(목록의 '+ 테스트케이스 추가', 상세의 '수정').
@@ -295,5 +296,7 @@ npm run build
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
-- ⏳ **다음(사용자 지정 순서):** 1) ~~Spring Security 로그인~~ ✅ 2) 다크모드 / StatCard. (추가 요청분 첨부파일 ✅) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
+- ✅ **다크모드**: `ThemeToggle`, `utils/theme.js`, theme.css 다크 팔레트
+- ✅ **StatCard 상단 요약**: 테스트케이스(전체·활성·검토대기·미분류, 검색 API 재사용) / 테스트 수행(전체 차수·진행중·종료·전체 통과율, 이미 불러온 차수 목록에서 클라이언트 계산 — API 추가 없음) / 이슈(전체·미해결·Critical·종료)
+- ⏳ **다음:** ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산 정해지면. 그 외 후보: TC 단계 스냅샷, 프로젝트/사용자 관리 화면, 역할별 권한(RBAC) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

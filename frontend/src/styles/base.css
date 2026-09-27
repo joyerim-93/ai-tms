@@ -33,6 +33,14 @@ h1, h2, h3 {
   padding: var(--space-5);
 }
 
+/* 화면 상단 요약 카드 4개 줄 (StatCard 재사용) */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
 .card-title {
   font-size: var(--font-size-lg);
   font-weight: 600;

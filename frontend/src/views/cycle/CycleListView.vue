@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { cycleApi } from '@/api/cycles'
 import { storeToRefs } from 'pinia'
@@ -7,12 +7,33 @@ import { useProjectStore } from '@/stores/projectStore'
 import { progressRate } from '@/constants/labels'
 import ProgressBar from '@/components/ProgressBar.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import StatCard from '@/components/StatCard.vue'
 
 const router = useRouter()
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
 const cycles = ref([])
 const error = ref('')
+
+// 프로젝트 전체 요약 — 이미 불러온 cycles(차수별 결과 집계 포함)로 클라이언트에서 계산, 별도 API 호출 없음
+const stats = computed(() => {
+  const inProgress = cycles.value.filter((c) => c.status === 'IN_PROGRESS').length
+  const planned = cycles.value.filter((c) => c.status === 'PLANNED').length
+  const closed = cycles.value.filter((c) => c.status === 'CLOSED').length
+  const executed = cycles.value.reduce((sum, c) => sum + (c.totalCount - c.notRunCount), 0)
+  const passed = cycles.value.reduce((sum, c) => sum + c.passCount, 0)
+  return [
+    { title: '전체 차수', value: cycles.value.length, unit: '개' },
+    { title: '진행중', value: inProgress, unit: '개', sub: `계획 ${planned}개` },
+    { title: '종료', value: closed, unit: '개' },
+    {
+      title: '전체 통과율',
+      value: executed ? Math.round((passed / executed) * 100) : 0,
+      unit: '%',
+      sub: executed ? `${executed}건 수행` : '수행 이력 없음',
+    },
+  ]
+})
 const showForm = ref(false)
 const form = reactive({ name: '', startDate: '', endDate: '' })
 
@@ -50,6 +71,10 @@ watch(projectId, load, { immediate: true })
     <button class="btn btn-primary" :disabled="!projectId" @click="showForm = !showForm">+ 새 차수</button>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
+
+  <section v-if="cycles.length" class="stat-row">
+    <StatCard v-for="s in stats" :key="s.title" v-bind="s" />
+  </section>
 
   <form v-if="showForm" class="card create-form" @submit.prevent="create">
     <div class="field name">

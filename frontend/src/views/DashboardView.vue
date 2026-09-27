@@ -97,12 +97,6 @@ const stats = computed(() => {
 </template>
 
 <style scoped>
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
 .bottom {
   display: grid;
   grid-template-columns: 1fr 1fr;

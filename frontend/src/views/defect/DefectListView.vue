@@ -9,6 +9,7 @@ import { DEFECT_STATUS, SEVERITY, formatDateTime } from '@/constants/labels'
 import LabelChip from '@/components/LabelChip.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
+import StatCard from '@/components/StatCard.vue'
 
 const router = useRouter()
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
@@ -20,8 +21,26 @@ const size = 20
 const result = ref({ items: [], total: 0 })
 const members = ref([])
 const error = ref('')
+const counts = ref({ total: 0, unresolved: 0, critical: 0, closed: 0 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(result.value.total / size)))
+
+async function loadCounts(id) {
+  const [total, unresolved, critical, closed] = await Promise.all([
+    defectApi.search({ projectId: id, size: 1 }),
+    defectApi.search({ projectId: id, unresolved: true, size: 1 }),
+    defectApi.search({ projectId: id, unresolved: true, severity: 'CRITICAL', size: 1 }),
+    defectApi.search({ projectId: id, status: 'CLOSED', size: 1 }),
+  ])
+  counts.value = { total: total.total, unresolved: unresolved.total, critical: critical.total, closed: closed.total }
+}
+
+const stats = computed(() => [
+  { title: '전체 이슈', value: counts.value.total.toLocaleString(), unit: '건' },
+  { title: '미해결', value: counts.value.unresolved.toLocaleString(), unit: '건', sub: 'NEW · OPEN · IN_PROGRESS' },
+  { title: 'Critical', value: counts.value.critical.toLocaleString(), unit: '건', sub: '미해결 중' },
+  { title: '종료', value: counts.value.closed.toLocaleString(), unit: '건' },
+])
 
 async function load(p = 1) {
   if (!projectId.value) return
@@ -47,6 +66,7 @@ watch(
   async (id) => {
     if (!id) return
     load()
+    loadCounts(id).catch((e) => (error.value = e.message))
     members.value = await projectApi.members(id).catch(() => [])
   },
   { immediate: true },
@@ -57,6 +77,10 @@ watch(
   <div class="page-actions">
     <button class="btn btn-primary" :disabled="!projectId" @click="router.push('/defects/new')">+ 이슈 등록</button>
   </div>
+
+  <section class="stat-row">
+    <StatCard v-for="s in stats" :key="s.title" v-bind="s" />
+  </section>
 
   <form class="card filters" @submit.prevent="load()">
     <input v-model="filter.keyword" class="input keyword" placeholder="이슈 코드 / 제목" />

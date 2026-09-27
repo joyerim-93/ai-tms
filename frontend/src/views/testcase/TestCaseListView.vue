@@ -9,6 +9,7 @@ import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE } from '@/constants/labe
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import FolderTree from '@/components/FolderTree.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
+import StatCard from '@/components/StatCard.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
 import ImportTestCaseModal from './ImportTestCaseModal.vue'
@@ -21,6 +22,7 @@ const router = useRouter()
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 
 const tree = ref({ roots: [], totalCount: 0, unfiledCount: 0 })
+const counts = ref({ active: 0, draft: 0 }) // 상단 StatCard용 — 전체/미분류는 폴더 트리 값 재사용
 const flatFolders = computed(() => flattenFolders(tree.value.roots))
 
 const folderKey = computed(() => {
@@ -57,6 +59,22 @@ async function loadTree() {
   if (!projectId.value) return
   tree.value = await folderApi.tree(projectId.value)
 }
+
+async function loadCounts() {
+  if (!projectId.value) return
+  const [active, draft] = await Promise.all([
+    testCaseApi.search({ projectId: projectId.value, status: 'ACTIVE', size: 1 }),
+    testCaseApi.search({ projectId: projectId.value, reviewStatus: 'DRAFT', size: 1 }),
+  ])
+  counts.value = { active: active.total, draft: draft.total }
+}
+
+const stats = computed(() => [
+  { title: '전체 테스트케이스', value: tree.value.totalCount.toLocaleString(), unit: '건' },
+  { title: '활성 테스트케이스', value: counts.value.active.toLocaleString(), unit: '건', sub: '상태 ACTIVE' },
+  { title: '검토대기', value: counts.value.draft.toLocaleString(), unit: '건', sub: counts.value.draft ? 'AI 추천 승인 필요' : '' },
+  { title: '미분류', value: tree.value.unfiledCount.toLocaleString(), unit: '건', sub: '폴더 미지정' },
+])
 
 async function load(p = 1) {
   if (!projectId.value) return
@@ -143,7 +161,7 @@ watch(
   projectId,
   async (next, prev) => {
     if (prev && route.query.folder) selectFolder('all')
-    await Promise.all([loadTree().catch((e) => (error.value = e.message)), load()])
+    await Promise.all([loadTree().catch((e) => (error.value = e.message)), loadCounts().catch(() => {}), load()])
   },
   { immediate: true },
 )
@@ -152,6 +170,10 @@ watch(folderKey, () => load())
 
 <template>
   <RepoTabs />
+
+  <section class="stat-row">
+    <StatCard v-for="s in stats" :key="s.title" v-bind="s" />
+  </section>
 
   <div class="split">
     <!-- 좌측: 폴더 트리 -->
