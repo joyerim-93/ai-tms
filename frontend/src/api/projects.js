@@ -10,4 +10,5 @@ export const folderApi = {
   tree: (projectId) => http(`/projects/${projectId}/folders`),
   create: (projectId, body) => http(`/projects/${projectId}/folders`, { method: 'POST', body }),
   rename: (projectId, id, name) => http(`/projects/${projectId}/folders/${id}`, { method: 'PUT', body: { name } }),
+  remove: (projectId, id) => http(`/projects/${projectId}/folders/${id}`, { method: 'DELETE' }),
 }

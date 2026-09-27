@@ -15,6 +15,7 @@ import RepoTabs from './RepoTabs.vue'
 import ImportTestCaseModal from './ImportTestCaseModal.vue'
 import TestCaseFormModal from './TestCaseFormModal.vue'
 import ExcelUploadModal from './ExcelUploadModal.vue'
+import ExcelIcon from '@/components/ExcelIcon.vue'
 
 // 좌: 폴더 트리 / 우: 선택 폴더(하위 포함)의 TC 목록. 선택 상태는 ?folder= (all | unfiled | id) 로 유지
 const route = useRoute()
@@ -138,6 +139,18 @@ async function renameFolder({ id, name }) {
   }
 }
 
+// 폴더 삭제(FolderTree에서 이미 확인창을 거침) — 안의 TC·직속 하위 폴더는 서버가 상위 폴더(최상위면 미분류)로 이동시킨 뒤 삭제
+async function deleteFolder(id) {
+  error.value = ''
+  try {
+    await folderApi.remove(projectId.value, id)
+    if (selectedFolderId.value === id) selectFolder('all') // 삭제된 폴더를 보고 있었으면 전체로 이동
+    await Promise.all([loadTree(), load(page.value)])
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
 // 등록 팝업 저장 → 상세로 이동 (파라미터화 TC를 새로 켰으면 바로 데이터셋 탭)
 function onSaved(saved) {
   showForm.value = false
@@ -182,7 +195,13 @@ watch(folderKey, () => load())
       <div class="node-root" :class="{ selected: folderKey === 'all' }" @click="selectFolder('all')">
         <span>🗂 전체 테스트케이스</span><span class="count">{{ tree.totalCount }}</span>
       </div>
-      <FolderTree :folders="tree.roots" :selected-id="selectedFolderId" @select="selectFolder" @rename="renameFolder" />
+      <FolderTree
+        :folders="tree.roots"
+        :selected-id="selectedFolderId"
+        @select="selectFolder"
+        @rename="renameFolder"
+        @delete="deleteFolder"
+      />
       <div class="node-root" :class="{ selected: folderKey === 'unfiled' }" @click="selectFolder('unfiled')">
         <span>📥 미분류</span><span class="count">{{ tree.unfiledCount }}</span>
       </div>
@@ -206,7 +225,7 @@ watch(folderKey, () => load())
       <div class="list-top">
         <h3 class="folder-title">{{ folderLabel }}</h3>
         <div class="actions">
-          <button class="btn" :disabled="!projectId" @click="showExcel = true">엑셀 업로드</button>
+          <button class="btn" :disabled="!projectId" @click="showExcel = true"><ExcelIcon />엑셀 업로드</button>
           <button class="btn" :disabled="!projectId" @click="showImport = true">다른 프로젝트에서 가져오기</button>
           <button class="btn btn-primary" :disabled="!projectId" @click="showForm = true">+ 테스트케이스 추가</button>
         </div>

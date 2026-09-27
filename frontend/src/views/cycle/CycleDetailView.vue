@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { cycleApi, executionApi } from '@/api/cycles'
 import { CYCLE_STATUS, RESULT, formatDateTime, progressRate } from '@/constants/labels'
@@ -7,6 +7,7 @@ import ProgressBar from '@/components/ProgressBar.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ResultSelect from '@/components/ResultSelect.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
+import ExcelIcon from '@/components/ExcelIcon.vue'
 import { formatParam } from '@/utils/params'
 import UserCombo from '@/components/UserCombo.vue'
 import { userApi } from '@/api/users'
@@ -64,6 +65,24 @@ function removeCycle() {
     await cycleApi.remove(cycleId)
     router.push('/cycles')
   })
+}
+
+// 엑셀 다운로드 — 서버가 xlsx 생성(GET), 세션 쿠키로 인증되므로 새 탭으로 열면 바로 내려받아짐
+const showExportMenu = ref(false)
+const exportRoot = ref(null)
+const closeExportOnOutside = (e) => {
+  if (exportRoot.value && !exportRoot.value.contains(e.target)) showExportMenu.value = false
+}
+onMounted(() => document.addEventListener('click', closeExportOnOutside))
+onBeforeUnmount(() => document.removeEventListener('click', closeExportOnOutside))
+
+function downloadThisCycle() {
+  showExportMenu.value = false
+  window.open(`/api/cycles/${cycleId}/export`, '_blank')
+}
+function downloadAllCycles() {
+  showExportMenu.value = false
+  window.open(`/api/cycles/export?projectId=${cycle.value.projectId}`, '_blank')
 }
 
 function toggle(id) {
@@ -162,6 +181,15 @@ onMounted(async () => {
 <template>
   <div class="page-actions">
     <button class="btn" @click="router.push('/cycles')">목록</button>
+    <div v-if="cycle" ref="exportRoot" class="export-menu">
+      <button type="button" class="btn" :aria-expanded="showExportMenu" aria-haspopup="menu" @click="showExportMenu = !showExportMenu">
+        <ExcelIcon />엑셀 다운로드 ▾
+      </button>
+      <ul v-if="showExportMenu" class="menu-dropdown" role="menu">
+        <li role="menuitem" class="menu-option" @click="downloadThisCycle">이 차수만 다운로드</li>
+        <li role="menuitem" class="menu-option" @click="downloadAllCycles">전체 차수 다운로드</li>
+      </ul>
+    </div>
     <button v-if="cycle" class="btn btn-danger" @click="removeCycle">차수 삭제</button>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
@@ -347,6 +375,35 @@ onMounted(async () => {
 <style scoped>
 .message {
   color: var(--result-success-text);
+}
+.export-menu {
+  position: relative;
+}
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 20;
+  min-width: 170px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-overlay);
+}
+.menu-option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.menu-option:hover {
+  background: var(--surface-hover);
+  color: var(--accent);
 }
 .summary {
   display: flex;

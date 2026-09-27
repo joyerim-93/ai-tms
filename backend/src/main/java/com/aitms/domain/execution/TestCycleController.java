@@ -19,6 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aitms.domain.execution.ExecutionRequests.AddExecutionsRequest;
 import com.aitms.domain.execution.ExecutionRequests.AssignRequest;
 import com.aitms.domain.execution.ExecutionRequests.CycleRequest;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +33,7 @@ public class TestCycleController {
 
     private final TestCycleService cycleService;
     private final TestExecutionService executionService;
+    private final TestExecutionExcelService excelService;
 
     @GetMapping
     public List<TestCycle> list(@RequestParam Long projectId) {
@@ -79,5 +84,25 @@ public class TestCycleController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeExecution(@PathVariable Long id, @PathVariable Long executionId) {
         executionService.remove(id, executionId);
+    }
+
+    // ── 엑셀 다운로드
+
+    @GetMapping("/{id}/export")
+    public ResponseEntity<byte[]> exportCycle(@PathVariable Long id) {
+        return xlsx(excelService.exportCycle(id), excelService.cycleFileName(id));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportProject(@RequestParam Long projectId) {
+        return xlsx(excelService.exportProject(projectId), excelService.projectFileName(projectId));
+    }
+
+    private static ResponseEntity<byte[]> xlsx(byte[] body, String fileName) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(fileName, java.nio.charset.StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 }

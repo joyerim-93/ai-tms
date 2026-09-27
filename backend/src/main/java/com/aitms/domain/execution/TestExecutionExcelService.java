@@ -91,7 +91,7 @@ public class TestExecutionExcelService {
                 row.createCell(col++).setCellValue(e.getTcCode());
                 row.createCell(col++).setCellValue(e.getTcTitle());
                 row.createCell(col++).setCellValue(e.getDatasetLabel() == null ? "" : e.getDatasetLabel());
-                row.createCell(col++).setCellValue(ExecutionLabels.result(e.getResult()));
+                row.createCell(col++).setCellValue(resultLabel(e.getResult()));
                 row.createCell(col++).setCellValue(e.getAssigneeName() == null ? "" : e.getAssigneeName());
                 row.createCell(col++).setCellValue(e.getExecutedAt() == null ? "" : e.getExecutedAt().format(DATETIME));
                 row.createCell(col).setCellValue(e.getLastComment() == null ? "" : e.getLastComment());
@@ -126,5 +126,14 @@ public class TestExecutionExcelService {
 
     private static String safe(String name) {
         return name.replaceAll("[\\\\/:*?\"<>|]", "_");
+    }
+
+    private static String resultLabel(ExecutionResult result) {
+        return switch (result) {
+            case PASS -> "성공";
+            case FAIL -> "실패";
+            case BLOCKED -> "Block";
+            case NOT_RUN -> "미수행";
+        };
     }
 }

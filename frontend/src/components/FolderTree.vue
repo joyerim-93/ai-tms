@@ -9,7 +9,7 @@ const props = defineProps({
   selectedId: { type: [Number, String, null], default: null },
   depth: { type: Number, default: 0 },
 })
-const emit = defineEmits(['select', 'rename'])
+const emit = defineEmits(['select', 'rename', 'delete'])
 
 // 기본 펼침. 접은 폴더 id만 기억
 const collapsed = ref(new Set())
@@ -47,6 +47,18 @@ function openMenu(e, f) {
 }
 const closeMenu = () => (menu.value = null)
 onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
+
+// 삭제 — 안이 비어있지 않으면 이동 안내를 포함한 확인창. 확인하면 id만 emit(실제 이동·삭제는 서버가 처리)
+function confirmDelete(f) {
+  menu.value = null
+  const tcCount = f.testCaseCount ?? 0
+  const subCount = f.children?.length ?? 0
+  const message =
+    tcCount || subCount
+      ? `이 폴더에 TC ${tcCount}건, 하위폴더 ${subCount}개가 있습니다. 삭제하면 TC들은 상위 폴더로 이동합니다. 계속할까요?`
+      : `'${f.name}' 폴더를 삭제할까요?`
+  if (window.confirm(message)) emit('delete', f.id)
+}
 </script>
 
 <template>
@@ -93,6 +105,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         :depth="depth + 1"
         @select="emit('select', $event)"
         @rename="emit('rename', $event)"
+        @delete="emit('delete', $event)"
       />
     </li>
   </ul>
@@ -100,6 +113,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
   <Teleport to="body">
     <ul v-if="menu" class="ctx-menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @click.stop>
       <li><button type="button" @click="startEdit(menu.folder)">✏️ 이름 수정</button></li>
+      <li><button type="button" class="danger" @click="confirmDelete(menu.folder)">🗑️ 삭제</button></li>
     </ul>
   </Teleport>
 </template>
@@ -189,6 +203,12 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
 }
 .ctx-menu button:hover {
   background: var(--surface-hover);
+}
+.ctx-menu button.danger {
+  color: var(--result-fail-text);
+}
+.ctx-menu button.danger:hover {
+  background: var(--result-fail-bg);
 }
 .count {
   color: var(--text-muted);
