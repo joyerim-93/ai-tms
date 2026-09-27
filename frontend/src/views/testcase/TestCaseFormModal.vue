@@ -70,6 +70,10 @@ async function loadProjectOptions(projectId) {
   folders.value = flattenFolders((await folderApi.tree(projectId)).roots)
 }
 
+// 파라미터화(데이터 기반) 방식을 보여주는 예시 placeholder — 값으로 저장되지 않음(네이티브 placeholder)
+const STEPS_PLACEHOLDER = '예:\n1. 가입금액에 {amount}원 입력\n2. 가입기간을 {period}개월로 설정\n3. 가입 신청 버튼 클릭'
+const EXPECTED_PLACEHOLDER = '예: {expected} 안내 문구가 노출되며 가입이 {result}된다'
+
 // 파라미터화 토글의 '단계에서 찾은 변수' 힌트용 — 저장할 형태(steps[])로 미리 변환해서 검사
 const variables = computed(() => extractVariables(pairSteps(form.stepsText, form.expectedText)))
 
@@ -122,7 +126,7 @@ async function save() {
           </div>
           <div class="span-2">
             <label class="label required">테스트케이스명</label>
-            <input v-model="form.title" class="input" maxlength="300" required />
+            <input v-model="form.title" class="input" maxlength="300" required placeholder="예: 가입금액 경계값 검증 (데이터 기반)" />
           </div>
           <div>
             <label class="label required">우선순위</label>
@@ -161,7 +165,12 @@ async function save() {
           </div>
           <div class="span-2">
             <label class="label">사전조건 <span class="muted">(선택)</span></label>
-            <textarea v-model="form.precondition" class="textarea precondition-input" maxlength="2000" />
+            <textarea
+              v-model="form.precondition"
+              class="textarea precondition-input"
+              maxlength="2000"
+              placeholder="예: 상품 가입 화면에 진입한 상태"
+            />
           </div>
         </div>
       </section>
@@ -177,7 +186,7 @@ async function save() {
               class="textarea steps-input"
               maxlength="4000"
               required
-              placeholder="한 줄에 하나씩 순서대로 입력 (앞의 '1. ' 번호는 자동으로 무시됩니다)"
+              :placeholder="STEPS_PLACEHOLDER"
             />
           </div>
           <div>
@@ -187,9 +196,12 @@ async function save() {
               class="textarea steps-input"
               maxlength="4000"
               required
-              placeholder="단계와 같은 줄 수면 단계별로 짝지어지고, 한 줄만 적으면 마지막 단계에 반영됩니다."
+              :placeholder="EXPECTED_PLACEHOLDER"
             />
           </div>
+          <p class="muted small param-hint">
+            <code>{변수명}</code> 형태로 입력하면, 아래 ‘파라미터화’ 토글을 켰을 때 데이터셋 탭에서 값을 여러 세트로 넣어 반복 실행할 수 있어요.
+          </p>
         </div>
       </section>
     </div>
@@ -280,5 +292,12 @@ async function save() {
   min-height: 118px;
   font-family: var(--font-mono);
   white-space: pre-wrap;
+}
+.param-hint {
+  margin: 0;
+}
+.param-hint code {
+  color: var(--accent);
+  font-family: var(--font-mono);
 }
 </style>
