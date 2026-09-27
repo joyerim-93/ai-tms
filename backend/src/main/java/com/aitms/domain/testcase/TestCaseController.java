@@ -1,6 +1,7 @@
 package com.aitms.domain.testcase;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -76,6 +77,12 @@ public class TestCaseController {
     @PatchMapping("/{id}/review")
     public TestCase review(@PathVariable Long id, @Validated @RequestBody TestCaseRequest.ReviewRequest req) {
         return service.review(id, req.reviewStatus());
+    }
+
+    /** 검수함 — 선택한 TC 여러 건을 한 번에 승인/반려 */
+    @PatchMapping("/review/batch")
+    public Map<String, Integer> reviewBatch(@Validated @RequestBody BatchReviewRequest req) {
+        return Map.of("updated", service.reviewBatch(req.testCaseIds(), req.reviewStatus()));
     }
 
     @DeleteMapping("/{id}")

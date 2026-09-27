@@ -177,6 +177,17 @@ public class TestCaseService {
         return get(id);
     }
 
+    /** 검수함 — 여러 TC를 한 번에 승인/반려. 존재하지 않는 id는 404 (한 건도 처리 안 되고 트랜잭션 롤백) */
+    @Transactional
+    public int reviewBatch(List<Long> testCaseIds, ReviewStatus reviewStatus) {
+        List<Long> distinct = testCaseIds.stream().distinct().toList();
+        for (Long id : distinct) {
+            get(id);
+            mapper.updateReview(id, reviewStatus, CurrentUser.id());
+        }
+        return distinct.size();
+    }
+
     /**
      * 다른 프로젝트의 승인된 TC를 현재 프로젝트에 새 row로 복제 ('중앙관리'는 공유가 아니라 복제로 구현).
      * origin_project_id = 원본 TC의 프로젝트. 요구사항 링크는 프로젝트별이라 복사하지 않음.

@@ -102,6 +102,28 @@ class TestCaseServiceTest {
     }
 
     @Test
+    void 검수함_일괄_승인과_일괄_반려() {
+        // 샘플 TC-104(4), TC-107(7): RULE 출처 DRAFT
+        var result = service.reviewBatch(List.of(4L, 7L), ReviewStatus.APPROVED);
+        assertThat(result).isEqualTo(2);
+        assertThat(service.get(4L).getReviewStatus()).isEqualTo(ReviewStatus.APPROVED);
+        assertThat(service.get(7L).getReviewStatus()).isEqualTo(ReviewStatus.APPROVED);
+        assertThat(service.get(4L).getReviewedByName()).isEqualTo("김큐에이");
+
+        // 샘플 TC-108(8), TC-109(9): RAG 출처 DRAFT — 반려, 중복 id는 한 번만 처리
+        var rejected = service.reviewBatch(List.of(8L, 9L, 8L), ReviewStatus.REJECTED);
+        assertThat(rejected).isEqualTo(2);
+        assertThat(service.get(8L).getReviewStatus()).isEqualTo(ReviewStatus.REJECTED);
+        assertThat(service.get(9L).getReviewStatus()).isEqualTo(ReviewStatus.REJECTED);
+    }
+
+    @Test
+    void 검수함_일괄_처리_중_존재하지_않는_id가_있으면_예외() {
+        assertThatThrownBy(() -> service.reviewBatch(List.of(4L, 999999L), ReviewStatus.APPROVED))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
     void 출처와_검토상태로_검색한다() {
         TestCaseSearch search = new TestCaseSearch();
         search.setSource(TcSource.RAG);
