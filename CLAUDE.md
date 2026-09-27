@@ -12,11 +12,11 @@
 ## 스택
 | 영역 | 사용 |
 |---|---|
-| Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** (docs/03-SKELETON-v2.md 기준) |
+| Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** (docs/03-SKELETON-v2.md 기준), Apache POI(엑셀), Anthropic Java SDK(LLM 추천) |
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
 | Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4, Pinia |
 | 인증 | 미적용. 추후 Spring Security (users 테이블만 미리 설계) |
-| AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM(Claude API) 예정 — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
+| AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM ✅(Claude API, Anthropic Java SDK) — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
 
 > Initializr 기본값이 Boot 4.x라 `build.gradle`에서 3.5.x로 수동 고정했음 (mybatis-spring-boot-starter 3.0.x 호환).
 
@@ -34,7 +34,7 @@ ai-tms/
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
-│     │     ├─ recommend/        ✅ RecommendationService(@Primary Composite) ← RecommendationEngine들 + RecommendationJobService/Controller/Mapper(잡 상태): RuleBasedRecommendationService(3-1), RagRecommendationService(3-2, TcRetriever→KeywordTcRetriever/TextSimilarity, RagMapper), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
+│     │     ├─ recommend/        ✅ RecommendationService(@Primary Composite) ← RecommendationEngine들 + RecommendationJobService/Controller/Mapper(잡 상태): RuleBasedRecommendationService(3-1), RagRecommendationService(3-2, TcRetriever→KeywordTcRetriever/TextSimilarity, RagMapper), LlmRecommendationService(3-3, LlmClient→AnthropicLlmClient, LlmProposal), RecommendationResult/TcRecommendation, RuleCatalog(규칙 카탈로그, generator JSON)
 │     │     ├─ execution/        ✅ 테스트수행관리 (차수 TestCycle*, 수행항목 TestExecution*) — 문서의 testrun/TestRound에 해당
 │     │     ├─ defect/           ✅ 결함관리 (DefectStatus에 상태 전이 규칙)
 │     │     └─ dashboard/        ✅ 대시보드 요약
@@ -217,6 +217,7 @@ ai-tms/
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
 - 규칙기반(RULE) 추천 = **파라미터화 TC 1개 + 데이터셋 N행**. `[[text]] [[unit]] [[flag]] [[bonus]]`는 생성 시점에 원자 요구사항 값으로 치환, `{value} {option} {flag} {expected}`는 단계에 남는 데이터셋 변수. 범위 값 누락·규칙 없음은 `warnings`로 반환.
 - 저장은 `RequirementService.recommend`가 담당(`TestCaseService.createDraft`), 엔진은 후보(`TcRecommendation`)만 생성. 엔진 추가 = `RecommendationEngine` 빈 추가(LLM 3-3 예정).
+- **LLM(3-3) 규칙:** 요구사항 1건당 Claude API 1회(`LlmRecommendationService`) — 원문·원자 요구사항(id/유형/범위/조건)·**이미 연결된 TC 제목**(중복 방지)을 주고, 규칙/RAG가 놓치기 쉬운 교차 조합·예외 흐름·정합성 TC를 최대 `app.ai.llm.max-cases`(5)건 제안받음. 응답은 **구조화 출력**(`LlmProposal` 레코드 → JSON 스키마 자동 생성)이라 파싱 실패가 없음. 검증: 원자 id가 목록에 없거나 제목/단계 누락·길이 초과인 제안은 버리고 경고. 저장은 source=LLM·DRAFT·비파라미터화·미분류·해당 원자 요구사항에 링크(승인 후 사용). 모델 `app.ai.llm.model`(기본 `claude-opus-5`), 인증은 `app.ai.llm.api-key` 또는 SDK 기본(`ANTHROPIC_API_KEY` 환경변수 / `ant auth login`). **호출 실패·인증 없음·거절·잘림은 예외가 아니라 경고**로 남기고 규칙/RAG 결과는 유지. `app.ai.llm.enabled=false`면 호출 안 함(테스트는 gradle `systemProperty`로 꺼두고 가짜 `LlmClient` 사용). 프롬프트 캐싱·거절 fallback 미적용.
 - **RAG(3-2) 규칙:** 검색 대상 = **현재 프로젝트를 제외한** 전체 프로젝트의 APPROVED·ACTIVE TC. 점수 = max(원자 텍스트↔TC 제목·모듈·태그, ↔TC가 검증하는 원자 요구사항 텍스트)의 글자 bigram Dice + 같은 요구사항 유형 +0.1, 임계 0.3 이상, 원자 요구사항당 상위 3건. 같은 원본 TC가 여러 원자에 걸리면 가장 유사한 원자 하나에만. 채택 시 원본의 단계·데이터셋을 복사한 DRAFT(source=RAG, origin_project_id=원본 프로젝트)로 저장하고 링크는 현재 원자 요구사항에 건다. 임베딩 도입 시 `TcRetriever` 구현체만 교체.
 
 ### 테스트수행 규칙
@@ -271,5 +272,6 @@ npm run build
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
-- ⏳ **다음: 3-3 LLM 신규 생성**(Claude API, `RecommendationEngine` 추가) → ai-agent(FastAPI /decompose, 임베딩 RAG 교체)
+- ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
+- ⏳ **다음:** ai-agent(FastAPI /decompose, 임베딩 RAG 교체) 또는 다크모드/StatCard/Spring Security 등
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

@@ -21,6 +21,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
+	implementation 'com.anthropic:anthropic-java:2.34.0'   // 3-3 LLM 추천 (Claude API)
 	implementation 'org.apache.poi:poi-ooxml:5.4.1'   // 테스트케이스 엑셀 업로드/템플릿
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
@@ -34,4 +35,5 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	systemProperty 'app.ai.llm.enabled', 'false'   // 테스트는 Claude API를 호출하지 않음 (LLM 테스트는 가짜 LlmClient 사용)
 }

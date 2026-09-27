@@ -55,7 +55,7 @@ async function create() {
   }
 }
 
-// AI 추천 요청(규칙기반 RULE + RAG) → 잡 생성 → 2초마다 상태 폴링 → 완료되면 DRAFT TC 결과 표시 + 목록 새로고침
+// AI 추천 요청(규칙기반 RULE + RAG + AI 생성 LLM) → 잡 생성 → 2초마다 상태 폴링 → 완료되면 DRAFT TC 결과 표시 + 목록 새로고침
 const POLL_MS = 2000
 const jobs = reactive({})     // requirementId → 최근 잡 { id, status, errorMessage, result }
 const results = reactive({})  // requirementId → 완료된 추천 결과 { message, created, skipped, warnings, scores }
@@ -220,7 +220,7 @@ onMounted(async () => {
               <div class="detail">
                 <div class="detail-head">
                   <div class="label">원문</div>
-                  <button class="btn btn-sm btn-primary" :disabled="isActive(jobs[r.id])" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC). LLM 신규 생성은 추후" @click="recommend(r.id)">
+                  <button class="btn btn-sm btn-primary" :disabled="isActive(jobs[r.id])" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC) + AI 생성(Claude)" @click="recommend(r.id)">
                     ✨ AI 추천 요청
                   </button>
                 </div>
