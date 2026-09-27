@@ -4,14 +4,11 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/projectStore'
 import AppHeader from '@/components/AppHeader.vue'
-import UserNameModal from '@/components/UserNameModal.vue'
-import { useUserStore } from '@/stores/userStore'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
 const { currentProjectId } = storeToRefs(projectStore)
-const { currentUserName } = storeToRefs(useUserStore())
 
 onMounted(() => projectStore.loadProjects().catch(() => {}))
 
@@ -26,8 +23,6 @@ watch(currentProjectId, (next, prev) => {
 
 <template>
   <AppHeader />
-  <!-- 첫 접속: 이름이 없으면 입력할 때까지 닫을 수 없는 팝업 -->
-  <UserNameModal v-if="!currentUserName" required />
   <main class="content">
     <!-- 같은 컴포넌트 재사용 경로(수정→등록 등) 이동 시 상태 초기화 -->
     <RouterView :key="route.path" />

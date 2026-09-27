@@ -1,14 +1,17 @@
 <script setup>
 import { useRoute } from 'vue-router'
-import { ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useUserStore } from '@/stores/userStore'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 import ProjectSelector from '@/components/ProjectSelector.vue'
-import UserNameModal from '@/components/UserNameModal.vue'
 
 const route = useRoute()
-const { currentUserName } = storeToRefs(useUserStore())
-const editingName = ref(false)
+const router = useRouter()
+const auth = useAuthStore()
+
+async function logout() {
+  await auth.logout()
+  router.push('/login')
+}
 
 const menus = [
   { to: '/', label: '대시보드' },
@@ -31,12 +34,10 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
         </RouterLink>
       </nav>
       <ProjectSelector class="selector" />
-      <button type="button" class="user-badge" title="이름 수정 (작성자·실행자·보고자에 표시)" @click="editingName = true">
-        👤 {{ currentUserName || '이름 입력' }} ✏️
-      </button>
+      <span class="user-badge" :title="`${auth.user?.loginId} (${auth.user?.role})`">👤 {{ auth.currentUserName }}</span>
+      <button type="button" class="logout" @click="logout">로그아웃</button>
     </div>
   </header>
-  <UserNameModal v-if="editingName" @close="editingName = false" />
 </template>
 
 <style scoped>
@@ -73,11 +74,21 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
   background: var(--surface-card);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.logout {
+  align-self: center;
+  margin-left: calc(var(--space-4) * -1);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
 }
-.user-badge:hover {
-  background: var(--surface-hover);
+.logout:hover {
+  color: var(--accent);
 }
 .menu {
   display: flex;

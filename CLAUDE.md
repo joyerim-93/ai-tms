@@ -15,7 +15,7 @@
 | Backend | Java 21, Spring Boot **3.5.x**, Gradle 8.14.5(wrapper), **MyBatis**(mapper XML) — **JPA 사용 금지** (docs/03-SKELETON-v2.md 기준), Apache POI(엑셀), Anthropic Java SDK(LLM 추천) |
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
 | Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4, Pinia |
-| 인증 | 미적용. 추후 Spring Security (users 테이블만 미리 설계) |
+| 인증 | **Spring Security 세션 로그인**(JSESSIONID) + CSRF 쿠키(XSRF-TOKEN→X-XSRF-TOKEN). 상세는 '### 인증' |
 | AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM ✅(Claude API, Anthropic Java SDK) — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
 
 > Initializr 기본값이 Boot 4.x라 `build.gradle`에서 3.5.x로 수동 고정했음 (mybatis-spring-boot-starter 3.0.x 호환).
@@ -28,9 +28,10 @@ ai-tms/
 │     ├─ java/com/aitms/
 │     │  ├─ AiTmsApplication.java
 │     │  ├─ config/              WebConfig(CORS)  (ai-agent 호출용 HTTP 클라이언트 설정 예정)
-│     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser(ThreadLocal), CurrentUserFilter(X-User-Name), Priority
+│     │  ├─ common/              ApiException, GlobalExceptionHandler, PageResponse, CurrentUser(SecurityContext), Priority
 │     │  └─ domain/              도메인별 패키지: VO/DTO · XxxMapper(@Mapper) · XxxService · XxxController
-│     │     ├─ user/             UserService.resolveByName(표시용 이름 → users), UserMapper
+│     │     ├─ user/             User, UserMapper(로그인 조회·초기 비밀번호)
+│     │  ├─ security/            SecurityConfig(세션·CSRF·경로 권한), AuthController(/api/auth), AuthUser, AuthUserDetailsService, PasswordBootstrap, CsrfCookieFilter
 │     │     ├─ project/          프로젝트/멤버 조회
 │     │     ├─ requirement/      요구사항 원문 + 원자 요구사항 조회/등록, AI 추천 트리거
 │     │     ├─ testcase/         ✅ 테스트케이스 (+ 추천 출처/검토, 폴더 TestCaseFolder*, 다른 프로젝트에서 가져오기)
@@ -47,7 +48,7 @@ ai-tms/
    └─ src/
       ├─ styles/theme.css        디자인 토큰 v3 (docs/04-DESIGN-v3.md) — 라이트만, 다크는 추후 같은 변수명으로
       ├─ styles/base.css         리셋 + 공통 클래스(.card, .btn)
-      ├─ stores/userStore.js     Pinia 표시용 사용자 이름: currentUserName(localStorage `aitms-user-name`), setName(). utils/userName.js 가 키·읽기 공유(http.js가 X-User-Name 헤더로 전송)
+      ├─ stores/authStore.js     Pinia 로그인 사용자: user{id,loginId,name,role}, currentUserName, loadMe()/login()/logout(). views/LoginView.vue, api/auth.js
       ├─ stores/projectStore.js  Pinia 전역 프로젝트 컨텍스트: projects, currentProjectId(localStorage `aitms-project`), currentProject, loadProjects(), selectProject()
       ├─ layouts/AppLayout.vue   AppHeader + 가운데 정렬 콘텐츠(max 1120px). 기동 시 loadProjects(), 프로젝트 전환 시 차수/이슈 상세 화면이면 목록으로 이동
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
@@ -83,10 +84,14 @@ ai-tms/
 - 대시보드는 별도 테이블 없이 집계 쿼리.
 - 기타 enum: project.status `ACTIVE|CLOSED`, project_role `PM|DEV|BIZ|QA`, priority `HIGH|MEDIUM|LOW`, severity `CRITICAL|MAJOR|MINOR|TRIVIAL`. 모두 VARCHAR + CHECK 제약.
 
-### 담당자명(표시용, 인증 아님)
-- 첫 접속 시 이름이 없으면 닫을 수 없는 '이름을 입력해주세요' 팝업(`UserNameModal`, AppLayout), 헤더 우측 `👤 {이름} ✏️` 클릭으로 수정. 브라우저 localStorage에 유지.
-- 기본값으로 채워지는 곳(그 자리에서 수정 가능, 수정하면 **그 요청만** 그 이름으로 기록 — `http(..., {userName})`): TC 등록 팝업 '작성자', 결과 입력 패널 '실행자', 이슈 등록 '보고자'. 담당자(assignee)는 기본값 없이 직접 지정.
-- 모든 API 요청에 헤더가 실려 그 외 기록(코멘트 작성자, 승인/반려 검토자, 상태 변경 이력, 프로젝트 등록자 PM 등)도 입력한 이름 사용자로 남음. 이름이 같은 기존 사용자(예: 김큐에이)면 그 사용자, 없으면 `guest-` 임시 사용자 생성 — 프로젝트 멤버는 아니므로 담당자 후보 목록엔 나오지 않음. 대시보드 '내 할일'은 이 사용자 기준.
+### 인증 (Spring Security, 2026-09-27)
+- **세션 기반 로그인**: `POST /api/auth/login {loginId, password}` → 세션 쿠키(HttpOnly, SameSite=Lax, 8h) + `{id, loginId, name, role}`, `GET /api/auth/me`, `POST /api/auth/logout`(204). 실패는 계정 존재 여부와 무관하게 같은 401 메시지. 비밀번호는 **BCrypt**(`users.password`), 비밀번호 없는 계정(임시 `guest-*` 등)은 로그인 불가. 로그인 시 세션 ID 재발급(세션 고정 방지).
+- **`/api/**` 전부 로그인 필수**(401 `{message}`), `/api/auth/login`·`/error`만 공개. `/h2-console/**`은 **ADMIN 역할만**. 그 외 역할별 권한(RBAC)은 아직 없음 — 인증만 적용(역할 DEV/BIZ/QA/ADMIN은 principal 에 `ROLE_xxx`로 실려 있음).
+- **CSRF**: 서버가 `XSRF-TOKEN` 쿠키를 내려주고 `http.js`가 GET 외 요청에 `X-XSRF-TOKEN` 헤더로 되돌려 보냄(없으면 403).
+- **초기 비밀번호(개발용)**: 기동 시 비밀번호가 없는 사용자에게 `app.security.initial-password`(기본 `aitms1234!`)를 BCrypt 로 설정(`PasswordBootstrap`, WARN 로그). 샘플 계정: `qa.kim`(김큐에이·QA) `dev.park`(박개발·DEV) `qa.lee`(이큐에이·QA) `biz.choi`(BIZ) `admin`(ADMIN). **운영에서는 반드시 변경/제거.** 회원가입·비밀번호 변경·계정관리 화면은 아직 없음.
+- `CurrentUser.id()` = 세션 principal(`AuthUser`)의 id. 인증 컨텍스트가 없는 곳(서비스 테스트, 추천 백그라운드 스레드)만 기본 사용자 id 1로 대체. 작성자·실행자·보고자·검토자·코멘트 작성자·프로젝트 등록자(PM)는 모두 로그인 사용자로 서버가 기록 — 화면의 작성자/실행자/보고자는 **읽기 전용 표시**(직접 입력 불가).
+- 프론트: `authStore`(user, loadMe/login/logout), 라우터 가드(비로그인 → `/login?redirect=`), `http.js`가 401 을 받으면 로그인 화면으로. TC 차수 TC 추가 팝업의 담당자 기본값 = 로그인 사용자(멤버인 경우, 변경 가능).
+- (이력) 로그인 도입 전 임시로 '화면에 입력한 이름 → X-User-Name 헤더' 방식(userStore, 이름 입력 팝업, guest 사용자)을 썼으나 로그인으로 대체하며 제거함.
 
 ### 스키마/데이터 규칙
 - 스키마 변경 시 schema.sql 수정 → IF NOT EXISTS라 기존 DB엔 반영 안 됨 → 개발 중엔 `backend/data/` 삭제 후 재기동.
@@ -127,7 +132,7 @@ ai-tms/
 - 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
 - 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
 - 목록 API는 `PageResponse{items,total,page,size}` 반환, 검색 조건은 `XxxSearch`(page/size/getOffset).
-- 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (Security 도입 시 이 한 곳만 교체). 지금은 **화면에 입력한 이름**이 `X-User-Name`(URL 인코딩) 헤더 → `CurrentUserFilter` → `UserService.resolveByName`(users.name 일치 사용자, 없으면 `guest-xxxx` 임시 사용자 QA 생성) → 요청 스레드의 CurrentUser. 헤더가 없으면 id 1. 필드는 기존 그대로(`author_id`, `executed_by`, `reporter_id`, 코멘트 author 등) — Security 도입 때 필터/`CurrentUser`만 교체하면 됨.
+- 로그인 사용자 id는 `CurrentUser.id()`로만 조회 (세션 로그인 principal, '### 인증' 참고). 서비스 코드에서 SecurityContext 를 직접 읽지 말 것.
 - FK/UNIQUE 위반(DataIntegrityViolation)은 전역 핸들러에서 400 처리.
 - 모달은 `BaseModal`(title, width, #footer 슬롯), 상세 편집은 우측 슬라이드 패널(ExecutionPanel 패턴). 오버레이 색은 `--bg-overlay`, 그림자 `--shadow-overlay`.
 - 도메인 한 화면에서만 쓰는 하위 컴포넌트는 `views/<도메인>/`에 둠, 여러 곳에서 쓰면 `components/`.
@@ -141,6 +146,7 @@ ai-tms/
 | POST / PUT | `/api/test-cases`, `/api/test-cases/{id}` | 등록/수정 (수정 시 version+1, 단계 전체 교체) |
 | DELETE | `/api/test-cases/{id}` | 차수 등록 이력 있으면 409 → 폐기(DEPRECATED)로 유도 |
 
+| POST/GET | `/api/auth/login`, `/api/auth/me`, POST `/api/auth/logout` | 로그인(공개) / 현재 사용자 / 로그아웃 |
 | GET | `/api/projects`, `/api/projects/{id}/members` | 프로젝트 목록 / 담당자 후보 |
 | GET | `/api/cycles?projectId` | 차수 목록 + 결과별 집계(totalCount/passCount/failCount/blockedCount/notRunCount) |
 | GET / POST / PUT / DELETE | `/api/cycles[/{id}]` | 차수 CRUD (번호 자동 채번, 생성 시 PLANNED, 이력 있으면 삭제 409) |
@@ -268,10 +274,11 @@ npm run build
 - ✅ 디자인 v3 전면 교체 (상단 탭 + ProjectTabs, theme.css 토큰, StatusBadge 공용화, 대시보드 카드 3종)
 - ✅ 파라미터화 TC (docs/09): A 스키마·백엔드 / B TC 목록(Key·데이터 행 수)·상세 탭(개요·테스트 스크립트·데이터셋·실행 이력·연결된 요구사항)·DatasetTable / C 차수 상세 테이블(행별 집계·치환 표시·ResultSelect)
 - ✅ 3-1 규칙기반 추천 (rule_catalog.generator, DRAFT 저장, 테스트 51개)
-- ✅ 담당자명 입력·유지(표시용): userStore, 헤더 배지, 첫 접속 팝업, X-User-Name 필터, TC 작성자/실행자/보고자 기본값 (테스트 72개)
+- ✅ 담당자명 입력(표시용) → Spring Security 로그인으로 대체됨
+- ✅ **Spring Security 로그인**: 세션+CSRF, BCrypt, 로그인 화면·가드, `/api/**` 보호, H2 콘솔 ADMIN 전용 (테스트 83개)
 - ✅ 엑셀 대량 업로드 (POI, 템플릿 다운로드, 업로드 팝업·결과 표시, 테스트 69개)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
 - ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
-- ⏳ **다음(사용자 지정 순서):** 1) Spring Security 로그인 2) 다크모드 / StatCard. ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
+- ⏳ **다음(사용자 지정 순서):** 1) ~~Spring Security 로그인~~ ✅ 2) 다크모드 / StatCard. (진행 중 추가 요청: 테스트수행 결과·이슈 첨부파일) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
 - ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면

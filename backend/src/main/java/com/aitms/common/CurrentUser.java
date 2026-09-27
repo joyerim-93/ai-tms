@@ -1,28 +1,27 @@
 package com.aitms.common;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import com.aitms.security.AuthUser;
+
 /**
- * 현재 사용자. 지금은 인증이 없어 화면에서 입력한 이름(X-User-Name 헤더 → users 행)을 요청 스레드에 담아 씀
- * ({@link CurrentUserFilter}). 헤더가 없으면 기본 사용자(id 1).
- * TODO: Spring Security 도입 시 SecurityContext 에서 조회하도록 이 클래스만 교체 (호출부는 그대로).
+ * 현재 사용자 — Spring Security 세션 로그인의 principal({@link AuthUser}).
+ * 인증 컨텍스트가 없는 곳(단위/서비스 테스트, 백그라운드 스레드)은 기본 사용자(id 1, qa.kim)로 대체.
+ * 웹 요청(/api/**)은 모두 로그인이 필요하므로 이 대체 경로는 사실상 타지 않음.
  */
 public final class CurrentUser {
 
     private static final Long DEFAULT_USER_ID = 1L; // data.sql 의 qa.kim
-    private static final ThreadLocal<Long> HOLDER = new ThreadLocal<>();
 
     private CurrentUser() {
     }
 
     public static Long id() {
-        Long id = HOLDER.get();
-        return id != null ? id : DEFAULT_USER_ID;
-    }
-
-    static void set(Long userId) {
-        HOLDER.set(userId);
-    }
-
-    static void clear() {
-        HOLDER.remove();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof AuthUser user) {
+            return user.id();
+        }
+        return DEFAULT_USER_ID;
     }
 }

@@ -27,8 +27,17 @@ mybatis:
 
 server:
   port: 8080
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
 
 app:
+  security:
+    # 비밀번호가 없는 사용자(샘플 사용자 등)에게 기동 시 넣는 초기 비밀번호 — 개발용, 운영에서는 반드시 변경/제거
+    initial-password: aitms1234!
   ai:
     llm:
       enabled: false                # 비용 때문에 꺼둠. true + API 키를 설정하면 AI 생성(LLM) 추천도 실행 (꺼져 있어도 규칙기반·RAG는 정상 동작)

@@ -6,7 +6,7 @@ import { executionApi } from '@/api/cycles'
 import { projectApi } from '@/api/projects'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/projectStore'
-import { useUserStore } from '@/stores/userStore'
+import { useAuthStore } from '@/stores/authStore'
 import { PRIORITY, SEVERITY } from '@/constants/labels'
 import StatusBadge from '@/components/StatusBadge.vue'
 
@@ -17,8 +17,7 @@ const router = useRouter()
 const { currentProjectId: projectId } = storeToRefs(useProjectStore())
 const id = route.params.id
 const isEdit = computed(() => !!id)
-const { currentUserName } = storeToRefs(useUserStore())
-const reporterName = ref(currentUserName.value) // 보고자(표시용) — 기본은 현재 사용자 이름, 담당자는 기본값 없이 직접 지정
+const auth = useAuthStore() // 보고자 = 로그인 사용자(서버가 기록), 담당자는 기본값 없이 직접 지정
 
 const form = reactive({
   title: '',
@@ -87,7 +86,7 @@ async function save() {
     executionId: execution.value?.id ?? null,
   }
   try {
-    const saved = isEdit.value ? await defectApi.update(id, body) : await defectApi.create(body, reporterName.value)
+    const saved = isEdit.value ? await defectApi.update(id, body) : await defectApi.create(body)
     router.replace(`/defects/${saved.id}`)
   } catch (e) {
     error.value = e.message
@@ -134,7 +133,7 @@ async function save() {
         </div>
         <div v-if="!isEdit" class="span-2">
           <label class="label">보고자</label>
-          <input v-model="reporterName" class="input" maxlength="50" placeholder="이름" />
+          <div class="readonly">{{ auth.currentUserName }}</div>
         </div>
         <div class="span-2">
           <label class="label">담당자</label>
@@ -176,5 +175,14 @@ async function save() {
 }
 .description {
   min-height: 260px;
+}
+.readonly {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
 }
 </style>

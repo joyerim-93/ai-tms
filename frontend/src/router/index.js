@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 const DefectForm = () => import('@/views/defect/DefectFormView.vue')
 
 const routes = [
+  { path: '/login', component: () => import('@/views/LoginView.vue'), meta: { title: '로그인', public: true } },
   {
     path: '/',
     component: AppLayout,
@@ -50,7 +52,17 @@ const routes = [
   },
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes,
 })
+
+// 로그인 가드: 비로그인이면 /login (원래 가려던 경로는 ?redirect), 로그인 상태에서 /login 이면 홈
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  if (!auth.loaded) await auth.loadMe()
+  if (!auth.user && !to.meta.public) return { path: '/login', query: { redirect: to.fullPath } }
+  if (auth.user && to.path === '/login') return '/'
+})
+
+export default router

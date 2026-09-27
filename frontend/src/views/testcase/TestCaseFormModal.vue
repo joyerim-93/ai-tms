@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
 import { folderApi } from '@/api/projects'
 import { useProjectStore } from '@/stores/projectStore'
-import { useUserStore } from '@/stores/userStore'
+import { useAuthStore } from '@/stores/authStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import { extractVariables, braced } from '@/utils/params'
@@ -19,7 +19,7 @@ const emit = defineEmits(['close', 'saved'])
 const id = props.testCaseId
 const isEdit = computed(() => !!id)
 const { currentProjectId, currentProject } = storeToRefs(useProjectStore())
-const { currentUserName } = storeToRefs(useUserStore())
+const auth = useAuthStore()
 
 const form = reactive({
   folderId: props.defaultFolderId ?? '',
@@ -33,7 +33,6 @@ const form = reactive({
   precondition: '',
   steps: [{ action: '', expectedResult: '' }],
 })
-const authorName = ref(currentUserName.value) // 등록 시 작성자(표시용) — 기본은 현재 사용자 이름, 그 자리에서 수정 가능
 const tcAuthor = ref(null)                   // 수정 시 기존 작성자(변경 불가)
 const modules = ref([])
 const folders = ref([])        // 평면 [{ id, name, depth, path }]
@@ -100,7 +99,7 @@ async function save() {
       technique: form.technique || null,
       steps,
     }
-    const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body, authorName.value)
+    const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
     emit('saved', saved)
   } catch (e) {
     error.value = e.message
@@ -131,8 +130,7 @@ async function save() {
         </div>
         <div class="span-2">
           <label class="label">작성자</label>
-          <div v-if="isEdit" class="readonly">{{ tcAuthor ?? '-' }}</div>
-          <input v-else v-model="authorName" class="input" maxlength="50" placeholder="이름" />
+          <div class="readonly">{{ isEdit ? (tcAuthor ?? '-') : auth.currentUserName }}</div>
         </div>
         <div class="span-4">
           <label class="label required">제목</label>

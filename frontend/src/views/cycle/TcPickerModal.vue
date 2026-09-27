@@ -4,6 +4,7 @@ import { testCaseApi } from '@/api/testCases'
 import { cycleApi } from '@/api/cycles'
 import BaseModal from '@/components/BaseModal.vue'
 import PriorityChip from '@/components/PriorityChip.vue'
+import { useAuthStore } from '@/stores/authStore'
 
 const props = defineProps({
   cycleId: { type: Number, required: true },
@@ -18,7 +19,9 @@ const modules = ref([])
 const items = ref([])
 const total = ref(0)
 const selected = ref(new Set())
-const assigneeId = ref('')
+const auth = useAuthStore()
+// 담당자 기본값 = 로그인 사용자(프로젝트 멤버인 경우), 그 자리에서 다른 멤버로 변경 가능
+const assigneeId = ref(props.members.find((m) => m.userId === auth.user?.id)?.userId ?? '')
 const error = ref('')
 const saving = ref(false)
 

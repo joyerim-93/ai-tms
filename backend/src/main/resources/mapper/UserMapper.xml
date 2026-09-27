@@ -2,15 +2,16 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitms.domain.user.UserMapper">
 
-    <select id="findIdByName" resultType="long">
-        SELECT id FROM users WHERE name = #{name} ORDER BY id LIMIT 1
+    <select id="findByLoginId" resultType="com.aitms.domain.user.User">
+        SELECT id, login_id, name, role, password, enabled FROM users WHERE login_id = #{loginId}
     </select>
 
-    <select id="findIdByLoginId" resultType="long">
-        SELECT id FROM users WHERE login_id = #{loginId}
+    <select id="findWithoutPassword" resultType="com.aitms.domain.user.User">
+        SELECT id, login_id, name, role, password, enabled FROM users
+         WHERE password IS NULL AND login_id NOT LIKE 'guest-%'
     </select>
 
-    <insert id="insertGuest">
-        INSERT INTO users (login_id, name, role) VALUES (#{loginId}, #{name}, 'QA')
-    </insert>
+    <update id="updatePassword">
+        UPDATE users SET password = #{password}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
 </mapper>

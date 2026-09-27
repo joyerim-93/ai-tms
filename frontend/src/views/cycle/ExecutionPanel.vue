@@ -1,8 +1,7 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
-import { useUserStore } from '@/stores/userStore'
+import { useAuthStore } from '@/stores/authStore'
 import { executionApi } from '@/api/cycles'
 import { testCaseApi } from '@/api/testCases'
 import { defectApi } from '@/api/defects'
@@ -24,9 +23,7 @@ const exec = ref(null)
 const tc = ref(null)
 const history = ref([])
 const comment = ref('')
-const { currentUserName } = storeToRefs(useUserStore())
-const executor = ref(currentUserName.value) // 실행자(표시용) — 기본은 현재 사용자 이름, 그 자리에서 수정 가능
-watch(currentUserName, (v) => (executor.value = v))
+const auth = useAuthStore() // 실행자 = 로그인 사용자(서버가 기록)
 const defects = ref([]) // 이 수행 항목에 연결된 이슈
 const saving = ref(false)
 const error = ref('')
@@ -55,7 +52,7 @@ async function record(result) {
   saving.value = true
   error.value = ''
   try {
-    await executionApi.record(props.executionId, result, comment.value, executor.value)
+    await executionApi.record(props.executionId, result, comment.value)
     comment.value = ''
     await load()
     emit('recorded')
@@ -121,7 +118,7 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
             <div class="label">결과 입력</div>
             <div class="executor">
               <label class="label">실행자</label>
-              <input v-model="executor" class="input" maxlength="50" placeholder="이름" />
+              <span class="executor-name">{{ auth.currentUserName }}</span>
             </div>
             <textarea v-model="comment" class="textarea" maxlength="2000" placeholder="코멘트 (선택)" />
             <div class="result-buttons">
@@ -311,8 +308,9 @@ onMounted(() => load().catch((e) => (error.value = e.message)))
   margin: 0;
   white-space: nowrap;
 }
-.executor .input {
-  max-width: 200px;
+.executor-name {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 .comment {
   margin-top: var(--space-2);
