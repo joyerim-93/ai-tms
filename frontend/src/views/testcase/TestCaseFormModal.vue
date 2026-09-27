@@ -1,24 +1,26 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
 import { folderApi } from '@/api/projects'
-import { requirementApi } from '@/api/requirements'
 import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import { extractVariables, braced } from '@/utils/params'
-import RequirementLinkPicker from './RequirementLinkPicker.vue'
+import BaseModal from '@/components/BaseModal.vue'
 
-const route = useRoute()
-const router = useRouter()
-const id = route.params.id
+// 등록/수정 공용 팝업. 요구사항 연결은 여기서 다루지 않음 — 저장 후 상세의 '연결된 요구사항' 탭에서 연결
+const props = defineProps({
+  testCaseId: { type: [Number, String], default: null },      // 있으면 수정
+  defaultFolderId: { type: Number, default: null },           // 등록 시 기본 폴더 (목록에서 선택 중이던 폴더)
+})
+const emit = defineEmits(['close', 'saved'])
+const id = props.testCaseId
 const isEdit = computed(() => !!id)
 const { currentProjectId, currentProject } = storeToRefs(useProjectStore())
 
 const form = reactive({
-  folderId: route.query.folder ? Number(route.query.folder) : '', // 목록에서 선택 중이던 폴더가 기본
+  folderId: props.defaultFolderId ?? '',
   title: '',
   module: '',
   priority: 'MEDIUM',
@@ -26,14 +28,12 @@ const form = reactive({
   tags: '',
   technique: '',
   isParameterized: false,
-  atomicRequirementIds: [], // 검증하는 원자 요구사항 (다대다)
   precondition: '',
   steps: [{ action: '', expectedResult: '' }],
 })
 const modules = ref([])
 const folders = ref([])        // 평면 [{ id, name, depth, path }]
 const tcProject = ref(null)    // 수정 시 TC 소유 프로젝트 { id, name }
-const requirementOptions = ref([]) // 같은 프로젝트의 원자 요구사항
 const saving = ref(false)
 const error = ref('')
 
@@ -45,7 +45,7 @@ onMounted(async () => {
     }
     const tc = await testCaseApi.get(id)
     tcProject.value = { id: tc.projectId, name: tc.projectName }
-    await loadProjectOptions(tc.projectId) // 폴더 이동·요구사항 연결은 같은 프로젝트 안에서만
+    await loadProjectOptions(tc.projectId) // 폴더 이동은 같은 프로젝트 안에서만
     Object.assign(form, {
       folderId: tc.folderId ?? '',
       title: tc.title,
@@ -55,7 +55,6 @@ onMounted(async () => {
       tags: tc.tags ?? '',
       technique: tc.technique ?? '',
       isParameterized: !!tc.isParameterized,
-      atomicRequirementIds: tc.requirements.map((r) => r.atomicRequirementId),
       precondition: tc.precondition ?? '',
       steps: tc.steps.map(({ action, expectedResult }) => ({ action, expectedResult: expectedResult ?? '' })),
     })
@@ -65,13 +64,11 @@ onMounted(async () => {
 })
 
 async function loadProjectOptions(projectId) {
-  const [tree, atomics, mods] = await Promise.all([
+  const [tree, mods] = await Promise.all([
     folderApi.tree(projectId),
-    requirementApi.atomics(projectId),
     testCaseApi.modules(projectId).catch(() => []),
   ])
   folders.value = flattenFolders(tree.roots)
-  requirementOptions.value = atomics
   modules.value = mods
 }
 
@@ -99,8 +96,7 @@ async function save() {
       steps,
     }
     const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
-    // 파라미터화 TC를 새로 켰으면 바로 데이터셋 탭으로
-    router.push({ path: `/test-cases/${saved.id}`, query: saved.isParameterized && !saved.datasets.length ? { tab: 'dataset' } : {} })
+    emit('saved', saved)
   } catch (e) {
     error.value = e.message
   } finally {
@@ -110,16 +106,11 @@ async function save() {
 </script>
 
 <template>
-  <form @submit.prevent="save">
-    <div class="page-actions">
-      <button type="button" class="btn" @click="router.back()">취소</button>
-      <button type="submit" class="btn btn-primary" :disabled="saving">
-        {{ saving ? '저장 중…' : '저장' }}
-      </button>
-    </div>
+  <BaseModal :title="isEdit ? '테스트케이스 수정' : '테스트케이스 등록'" width="900px" @close="emit('close')">
+    <form id="tc-form" @submit.prevent="save">
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <section class="card section">
+    <section class="section">
       <div class="card-title">기본 정보</div>
       <div class="grid">
         <div class="span-2">
@@ -186,12 +177,7 @@ async function save() {
       </div>
     </section>
 
-    <section class="card section">
-      <div class="card-title">검증하는 요구사항 <span class="muted count">{{ form.atomicRequirementIds.length }}건 선택</span></div>
-      <RequirementLinkPicker v-model="form.atomicRequirementIds" :options="requirementOptions" />
-    </section>
-
-    <section class="card">
+    <section>
       <div class="steps-header">
         <div class="card-title">테스트 단계</div>
         <button type="button" class="btn btn-sm" @click="addStep">+ 단계 추가</button>
@@ -220,7 +206,18 @@ async function save() {
       </table>
       <div v-if="!form.steps.length" class="empty">단계가 없습니다. ‘단계 추가’를 눌러 주세요.</div>
     </section>
-  </form>
+    </form>
+
+    <template #footer>
+      <span class="muted small">{{ isEdit ? '' : '요구사항 연결은 저장 후 상세 화면의 ‘연결된 요구사항’ 탭에서 할 수 있습니다.' }}</span>
+      <div class="actions">
+        <button type="button" class="btn" @click="emit('close')">취소</button>
+        <button type="submit" form="tc-form" class="btn btn-primary" :disabled="saving">
+          {{ saving ? '저장 중…' : '저장' }}
+        </button>
+      </div>
+    </template>
+  </BaseModal>
 </template>
 
 <style scoped>
@@ -258,10 +255,9 @@ async function save() {
 .small {
   font-size: var(--font-size-xs);
 }
-.count {
-  margin-left: var(--space-2);
-  font-size: var(--font-size-sm);
-  font-weight: 400;
+.actions {
+  display: flex;
+  gap: var(--space-2);
 }
 .readonly {
   display: flex;

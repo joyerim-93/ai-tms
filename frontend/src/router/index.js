@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 const DefectForm = () => import('@/views/defect/DefectFormView.vue')
-const TestCaseForm = () => import('@/views/testcase/TestCaseFormView.vue')
 
 const routes = [
   {
@@ -20,13 +19,11 @@ const routes = [
         component: () => import('@/views/testcase/RequirementListView.vue'),
         meta: { title: '테스트케이스 저장소' },
       },
-      { path: 'test-cases/new', component: TestCaseForm, meta: { title: '테스트케이스 등록' } },
       {
         path: 'test-cases/:id(\\d+)',
         component: () => import('@/views/testcase/TestCaseDetailView.vue'),
         meta: { title: '테스트케이스 상세' },
       },
-      { path: 'test-cases/:id(\\d+)/edit', component: TestCaseForm, meta: { title: '테스트케이스 수정' } },
       {
         path: 'cycles',
         component: () => import('@/views/cycle/CycleListView.vue'),

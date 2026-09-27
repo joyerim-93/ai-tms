@@ -24,6 +24,21 @@
         </choose>
     </select>
 
+    <select id="countSiblingExcluding" resultType="int">
+        SELECT COUNT(*) FROM test_case_folder
+         WHERE project_id = #{projectId}
+           AND name = #{name}
+           AND id != #{excludeId}
+        <choose>
+            <when test="parentFolderId != null">AND parent_folder_id = #{parentFolderId}</when>
+            <otherwise>AND parent_folder_id IS NULL</otherwise>
+        </choose>
+    </select>
+
+    <update id="updateName">
+        UPDATE test_case_folder SET name = #{name} WHERE id = #{id}
+    </update>
+
     <!-- 같은 부모 아래 마지막 순서로 추가 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO test_case_folder (project_id, parent_folder_id, name, sort_order)

@@ -51,11 +51,11 @@ ai-tms/
       ├─ api/                    http.js(fetch 래퍼) + 도메인별 API 모듈(testCases.js)
       ├─ constants/labels.js     enum → 한글 표시명, 날짜 포맷
       ├─ components/             AppHeader(메뉴 + 우측 ProjectSelector), ProjectSelector(전환 전용 드롭다운), StatCard, IssueListCard, TestRoundProgressCard, StatusBadge(공용 상태 뱃지),
-      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀),
+      │                          PriorityChip, LabelChip(labels 맵 기반 칩), ProgressBar(결과 누적막대), BaseModal, FolderTree(재귀, 더블클릭/우클릭 이름 수정),
       │                          TestCaseKeyBadge(Key 표기), DatasetTable(변수=열·데이터=행 스프레드시트, 인라인 편집/읽기전용·강조 행), ResultSelect(결과 뱃지 클릭→드롭다운 즉시 기록)
       ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
       ├─ utils/params.js         substitute/extractVariables/parseCell/braced — 파라미터화 {변수} 치환(프론트 담당)
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·Form + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업) + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
 
@@ -115,7 +115,7 @@ ai-tms/
 - 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text`. 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
 - 프로젝트 종속 화면: `const { currentProjectId: projectId } = storeToRefs(useProjectStore())` + `watch(projectId, load, { immediate: true })`. 선택 변경은 `projectStore.selectProject(id)`로만.
-- 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트).
+- 라우트: 목록 `/x`, 등록 `/x/new`, 상세 `/x/:id`, 수정 `/x/:id/edit` (등록/수정은 같은 Form 컴포넌트). **예외: 테스트케이스는 등록/수정을 라우트 없이 `TestCaseFormModal` 팝업으로 처리**(목록의 '+ 테스트케이스 추가', 상세의 '수정').
 - Backend: 도메인별 패키지, SQL은 mapper XML(`resources/mapper/XxxMapper.xml`)에 작성(어노테이션 SQL 금지), `resultType`은 FQCN 사용(type alias 미사용), DB 컬럼 snake_case → DTO camelCase 자동 매핑.
 - 요청 DTO는 record + Bean Validation, 응답/조회 DTO는 Lombok `@Getter @Setter` 클래스.
 - 에러: `throw ApiException.notFound(...)/conflict(...)` → `{"message": ...}` 응답. 검증 실패는 400 + 첫 필드 메시지.
@@ -153,6 +153,7 @@ ai-tms/
 | GET | `/api/test-cases?projectId&excludeProjectId&folderId&unfiled&...` | folderId는 하위 폴더 포함, unfiled=미분류만, projectId 없으면 전체(가져오기 검색) |
 | POST | `/api/test-cases/import` `{projectId, testCaseIds, folderId}` | 다른 프로젝트 APPROVED·ACTIVE TC를 새 row로 복제 |
 | GET / POST | `/api/projects/{id}/folders` `{name, parentFolderId}` | 폴더 트리(roots/totalCount/unfiledCount) / 생성(형제 중 마지막, 같은 이름 409) |
+| PUT | `/api/projects/{id}/folders/{folderId}` `{name}` | 폴더 이름 변경 (같은 위치 같은 이름 409, 자기 이름 그대로는 허용) |
 | POST | `/api/projects` `{code, name, description, startDate, endDate}` | 프로젝트 등록 (코드 대문자, 등록자 PM 자동 참여) — 화면은 테스트케이스 탭에서만 |
 | GET / POST / PUT / DELETE | `/api/test-cases/{id}/datasets[/{rowId}]` `{rowLabel, paramValues:{}, expectedResultOverride}` | 데이터셋 행 CRUD (행 단위 — 실행 항목이 참조, 실행된 행 삭제 409) |
 | PUT | `/api/test-cases/{id}/requirements` `{atomicRequirementIds}` | 연결 요구사항 교체 ('연결된 요구사항' 탭) |
@@ -187,6 +188,9 @@ ai-tms/
 - 차수 등록: 파라미터화 TC는 데이터셋 행마다 실행 항목 생성, 재등록 시 새로 추가된 데이터 행만 생성. 데이터 행이 없으면 TC 단위 1건.
 - 실행된 데이터 행은 삭제 불가(409). 다른 프로젝트에서 가져오기 시 데이터셋도 복제.
 - 샘플: TC-114(가입금액 경계값, 데이터 4행)가 TC-101~104를 대체 → 101~104는 DEPRECATED.
+
+- **TC 등록/수정 팝업에는 요구사항 연결이 없음.** 생성 후 상세의 '연결된 요구사항' 탭에서 연결. `PUT /api/test-cases/{id}`는 `atomicRequirementIds`를 **생략(null)하면 기존 연결 유지**, 보내면 전체 교체.
+- '다른 프로젝트에서 가져오기' 검색은 `keywordInProjectName=true`로 키워드를 **프로젝트명에도 LIKE** 적용(제목·코드·태그·프로젝트명). 일반 목록 검색은 프로젝트명 조건을 쓰지 않음.
 
 ### AI 추천/검토 규칙
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.

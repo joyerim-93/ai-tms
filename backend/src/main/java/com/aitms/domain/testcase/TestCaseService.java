@@ -66,7 +66,7 @@ public class TestCaseService {
         return get(tc.getId());
     }
 
-    /** 수정할 때마다 version +1, 단계는 전체 교체. 프로젝트는 변경 불가(폴더 이동은 같은 프로젝트 안에서만). */
+    /** 수정할 때마다 version +1, 단계는 전체 교체(요구사항 연결은 atomicRequirementIds를 보냈을 때만 교체). 프로젝트는 변경 불가(폴더 이동은 같은 프로젝트 안에서만). */
     @Transactional
     public TestCase update(Long id, TestCaseRequest req) {
         TestCase tc = get(id);
@@ -75,8 +75,10 @@ public class TestCaseService {
         mapper.update(tc);
         mapper.deleteSteps(id);
         saveSteps(id, req.steps());
-        mapper.deleteRequirementLinks(id);
-        saveRequirementLinks(id, tc.getProjectId(), req.atomicRequirementIds());
+        if (req.atomicRequirementIds() != null) {   // 생략(null)이면 기존 연결 유지 — 폼은 연결을 다루지 않고 상세의 '연결된 요구사항' 탭에서 관리
+            mapper.deleteRequirementLinks(id);
+            saveRequirementLinks(id, tc.getProjectId(), req.atomicRequirementIds());
+        }
         return get(id);
     }
 

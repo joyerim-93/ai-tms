@@ -115,4 +115,37 @@ class TestCaseFolderServiceTest {
                 .isInstanceOf(ApiException.class);
         assertThat(folderService.tree(p.getId()).roots()).isEmpty();
     }
+
+    @Test
+    void 폴더_이름을_바꿀_수_있고_같은_위치_중복과_다른_프로젝트는_거부된다() {
+        // 금리 정책(2)의 하위: 거치기간별 금리(4), 우대금리(5)
+        TestCaseFolder renamed = folderService.rename(1L, 4L, new FolderRenameRequest("  기간별 금리  "));
+        assertThat(renamed.getName()).isEqualTo("기간별 금리");
+        assertThat(folderService.rename(1L, 4L, new FolderRenameRequest("기간별 금리")).getName()).isEqualTo("기간별 금리"); // 자기 이름 그대로는 허용
+
+        assertThatThrownBy(() -> folderService.rename(1L, 4L, new FolderRenameRequest("우대금리")))
+                .isInstanceOf(ApiException.class).hasMessageContaining("이미 있습니다");
+        assertThatThrownBy(() -> folderService.rename(2L, 4L, new FolderRenameRequest("x")))
+                .isInstanceOf(ApiException.class);
+        assertThat(folderService.rename(1L, 3L, new FolderRenameRequest("금리 정책")).getName()).isEqualTo("금리 정책"); // 다른 부모 아래엔 같은 이름 가능
+    }
+
+    @Test
+    void 가져오기_검색은_키워드를_프로젝트명에도_적용할_수_있다() {
+        TestCaseSearch s = new TestCaseSearch();
+        s.setExcludeProjectId(1L);
+        s.setReviewStatus(ReviewStatus.APPROVED);
+        s.setKeyword("자유적금");   // 프로젝트 2 이름에만 있고 TC 제목에는 없음
+        assertThat(testCaseService.search(s).items()).isEmpty();
+
+        s.setKeywordInProjectName(true);
+        var res = testCaseService.search(s);
+        assertThat(res.items()).extracting(TestCase::getProjectName).containsOnly("KB 자유적금 갈아타기 이벤트");
+        assertThat(res.total()).isEqualTo(res.items().size());
+
+        // 프로젝트 목록 화면의 일반 검색(프로젝트 고정)은 프로젝트명 조건을 켜지 않으면 영향 없음
+        TestCaseSearch plain = search(2L);
+        plain.setKeyword("적금");
+        assertThat(testCaseService.search(plain).items()).isEmpty();
+    }
 }

@@ -144,4 +144,16 @@ class TestCaseServiceTest {
         // 원자 요구사항 4는 프로젝트 2 소속
         assertThatThrownBy(() -> service.create(linked("x", List.of(1L, 4L)))).isInstanceOf(ApiException.class);
     }
+
+    @Test
+    void 수정할_때_요구사항을_보내지_않으면_기존_연결이_유지되고_보내면_교체된다() {
+        TestCase created = service.create(linked("연결 유지", List.of(1L, 3L)));
+
+        TestCase kept = service.update(created.getId(), new TestCaseRequest(1L, null, "연결 유지(수정)", null, null,
+                Priority.MEDIUM, null, null, null, null, null, List.of()));
+        assertThat(kept.getRequirements()).extracting(r -> r.getAtomicRequirementId()).containsExactly(1L, 3L);
+
+        TestCase replaced = service.update(created.getId(), linked("연결 유지(수정)", List.of(2L)));
+        assertThat(replaced.getRequirements()).extracting(r -> r.getAtomicRequirementId()).containsExactly(2L);
+    }
 }

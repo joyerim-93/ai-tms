@@ -16,6 +16,7 @@ public class TestCaseSearch {
     private boolean unfiled;       // true면 폴더 미지정(미분류)만
     private List<Long> folderIds;  // 내부용
     private String keyword;        // 코드/제목/태그
+    private boolean keywordInProjectName; // true면 keyword 를 프로젝트명에도 적용 ('다른 프로젝트에서 가져오기')
     private String module;
     private Priority priority;
     private TestCaseStatus status;

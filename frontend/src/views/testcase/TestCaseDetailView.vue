@@ -11,6 +11,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
 import DatasetTable from '@/components/DatasetTable.vue'
 import RequirementLinkPicker from './RequirementLinkPicker.vue'
+import TestCaseFormModal from './TestCaseFormModal.vue'
 
 // Zephyr "Test Case Detail" 배치: 상단 Key·제목·뱃지 + 탭 5개 (선택 탭은 ?tab= 로 유지)
 const TABS = [
@@ -25,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const tc = ref(null)
 const error = ref('')
+const showEdit = ref(false)
 
 const tab = computed(() => (TABS.some((t) => t.key === route.query.tab) ? route.query.tab : 'overview'))
 const selectTab = (key) => router.replace({ query: { ...route.query, tab: key === 'overview' ? undefined : key } })
@@ -105,7 +107,7 @@ const saveLinks = () =>
     </button>
     <template v-if="tc">
       <button class="btn btn-danger" @click="remove">삭제</button>
-      <button class="btn btn-primary" @click="router.push(`/test-cases/${tc.id}/edit`)">수정</button>
+      <button class="btn btn-primary" @click="showEdit = true">수정</button>
     </template>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
@@ -284,6 +286,13 @@ const saveLinks = () =>
       </template>
     </section>
   </template>
+
+  <TestCaseFormModal
+    v-if="showEdit && tc"
+    :test-case-id="tc.id"
+    @close="showEdit = false"
+    @saved="(saved) => { tc = saved; showEdit = false }"
+  />
 </template>
 
 <style scoped>

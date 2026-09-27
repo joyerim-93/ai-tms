@@ -29,7 +29,8 @@
             <if test="keyword != null and keyword != ''">
                 AND (LOWER(tc.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
                   OR LOWER(tc.tc_code) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
-                  OR LOWER(tc.tags) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+                  OR LOWER(tc.tags) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                <if test="keywordInProjectName">OR LOWER(p.name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))</if>)
             </if>
             <if test="module != null and module != ''">AND tc.module = #{module}</if>
             <if test="priority != null">AND tc.priority = #{priority}</if>
@@ -55,6 +56,7 @@
 
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM test_case tc
+          JOIN project p ON p.id = tc.project_id
         <include refid="searchWhere"/>
     </select>
 

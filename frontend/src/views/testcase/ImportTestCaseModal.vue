@@ -28,6 +28,7 @@ async function search() {
   try {
     const res = await testCaseApi.search({
       ...filter,
+      keywordInProjectName: true, // 키워드를 프로젝트명에도 적용
       excludeProjectId: props.projectId,
       reviewStatus: 'APPROVED',
       status: 'ACTIVE',
@@ -68,7 +69,7 @@ onMounted(search)
 <template>
   <BaseModal title="다른 프로젝트에서 가져오기" width="900px" @close="emit('close')">
     <form class="filters" @submit.prevent="search">
-      <input v-model="filter.keyword" class="input" placeholder="코드 / 제목 / 태그" />
+      <input v-model="filter.keyword" class="input" placeholder="프로젝트명 / 코드 / 제목 / 태그" />
       <button class="btn btn-primary">검색</button>
     </form>
     <p class="muted hint">

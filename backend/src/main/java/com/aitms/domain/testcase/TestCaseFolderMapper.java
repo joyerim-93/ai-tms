@@ -19,7 +19,15 @@ public interface TestCaseFolderMapper {
                      @Param("parentFolderId") Long parentFolderId,
                      @Param("name") String name);
 
+    /** 같은 부모 아래 자기 자신(excludeId)을 뺀 같은 이름 폴더 수 (이름 변경 시 중복 방지) */
+    int countSiblingExcluding(@Param("projectId") Long projectId,
+                              @Param("parentFolderId") Long parentFolderId,
+                              @Param("name") String name,
+                              @Param("excludeId") Long excludeId);
+
     void insert(TestCaseFolder folder);
+
+    int updateName(@Param("id") Long id, @Param("name") String name);
 
     /** @param unfiledOnly true면 폴더 미지정 TC만 */
     int countTestCases(@Param("projectId") Long projectId, @Param("unfiledOnly") boolean unfiledOnly);

@@ -12,6 +12,7 @@ import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
 import ImportTestCaseModal from './ImportTestCaseModal.vue'
+import TestCaseFormModal from './TestCaseFormModal.vue'
 
 // 좌: 폴더 트리 / 우: 선택 폴더(하위 포함)의 TC 목록. 선택 상태는 ?folder= (all | unfiled | id) 로 유지
 const route = useRoute()
@@ -48,6 +49,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(result.value.total / siz
 const showFolderForm = ref(false)
 const folderForm = reactive({ name: '', parentFolderId: '' })
 const showImport = ref(false)
+const showForm = ref(false)
 
 async function loadTree() {
   if (!projectId.value) return
@@ -105,6 +107,23 @@ async function createFolder() {
   }
 }
 
+async function renameFolder({ id, name }) {
+  error.value = ''
+  try {
+    await folderApi.rename(projectId.value, id, name)
+    await loadTree()
+    await load(page.value) // 목록의 폴더명 컬럼 갱신
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+// 등록 팝업 저장 → 상세로 이동 (파라미터화 TC를 새로 켰으면 바로 데이터셋 탭)
+function onSaved(saved) {
+  showForm.value = false
+  router.push({ path: `/test-cases/${saved.id}`, query: saved.isParameterized && !saved.datasets.length ? { tab: 'dataset' } : {} })
+}
+
 async function onImported(count) {
   const target = selectedFolderId.value ? folderLabel.value : '미분류'
   showImport.value = false
@@ -134,7 +153,7 @@ watch(folderKey, () => load())
       <div class="node-root" :class="{ selected: folderKey === 'all' }" @click="selectFolder('all')">
         <span>🗂 전체 테스트케이스</span><span class="count">{{ tree.totalCount }}</span>
       </div>
-      <FolderTree :folders="tree.roots" :selected-id="selectedFolderId" @select="selectFolder" />
+      <FolderTree :folders="tree.roots" :selected-id="selectedFolderId" @select="selectFolder" @rename="renameFolder" />
       <div class="node-root" :class="{ selected: folderKey === 'unfiled' }" @click="selectFolder('unfiled')">
         <span>📥 미분류</span><span class="count">{{ tree.unfiledCount }}</span>
       </div>
@@ -159,13 +178,7 @@ watch(folderKey, () => load())
         <h3 class="folder-title">{{ folderLabel }}</h3>
         <div class="actions">
           <button class="btn" :disabled="!projectId" @click="showImport = true">다른 프로젝트에서 가져오기</button>
-          <button
-            class="btn btn-primary"
-            :disabled="!projectId"
-            @click="router.push({ path: '/test-cases/new', query: selectedFolderId ? { folder: selectedFolderId } : {} })"
-          >
-            + 테스트케이스 추가
-          </button>
+          <button class="btn btn-primary" :disabled="!projectId" @click="showForm = true">+ 테스트케이스 추가</button>
         </div>
       </div>
       <p v-if="message" class="message">{{ message }}</p>
@@ -246,6 +259,13 @@ watch(folderKey, () => load())
       </section>
     </section>
   </div>
+
+  <TestCaseFormModal
+    v-if="showForm && projectId"
+    :default-folder-id="selectedFolderId"
+    @close="showForm = false"
+    @saved="onSaved"
+  />
 
   <ImportTestCaseModal
     v-if="showImport && projectId"

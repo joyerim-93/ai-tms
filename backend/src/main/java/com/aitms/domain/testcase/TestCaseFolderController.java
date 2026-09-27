@@ -5,6 +5,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -22,6 +23,12 @@ public class TestCaseFolderController {
     @GetMapping
     public FolderTree tree(@PathVariable Long projectId) {
         return service.tree(projectId);
+    }
+
+    @PutMapping("/{id}")
+    public TestCaseFolder rename(@PathVariable Long projectId, @PathVariable Long id,
+                                 @Validated @RequestBody FolderRenameRequest req) {
+        return service.rename(projectId, id, req);
     }
 
     @PostMapping

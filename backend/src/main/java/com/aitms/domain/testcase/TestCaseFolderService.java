@@ -77,6 +77,21 @@ public class TestCaseFolderService {
         return get(folder.getId());
     }
 
+    /** 이름 변경 — 같은 위치에 같은 이름이 있으면 409 (자기 자신 제외) */
+    @Transactional
+    public TestCaseFolder rename(Long projectId, Long id, FolderRenameRequest req) {
+        TestCaseFolder folder = get(id);
+        if (!folder.getProjectId().equals(projectId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "다른 프로젝트의 폴더입니다.");
+        }
+        String name = req.name().strip();
+        if (mapper.countSiblingExcluding(projectId, folder.getParentFolderId(), name, id) > 0) {
+            throw ApiException.conflict("같은 위치에 '" + name + "' 폴더가 이미 있습니다.");
+        }
+        mapper.updateName(id, name);
+        return get(id);
+    }
+
     private static int sumTotals(TestCaseFolder folder) {
         int total = folder.getTestCaseCount();
         for (TestCaseFolder child : folder.getChildren()) {
