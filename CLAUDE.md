@@ -58,7 +58,7 @@ ai-tms/
       │                          RecommendationStatusBadge(추천 잡 상태), TestCaseKeyBadge(Key 표기), DatasetTable(변수=열·데이터=행 스프레드시트, 인라인 편집/읽기전용·강조 행), ResultSelect(결과 뱃지 클릭→드롭다운 즉시 기록)
       ├─ utils/folders.js        폴더 트리 평면화(flattenFolders)·들여쓰기 라벨
       ├─ utils/params.js         substitute/extractVariables/parseCell/braced — 파라미터화 {변수} 치환(프론트 담당)
-      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업)·ExcelUploadModal(엑셀 업로드) + RepoTabs(+새 프로젝트)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
+      ├─ views/                  페이지 (도메인별 폴더: views/testcase/ List(좌 FolderTree/우 목록)·Detail·FormModal(등록/수정 팝업)·ExcelUploadModal(엑셀 업로드)·ReviewInboxView(검수함) + RepoTabs(테스트케이스/요구사항·AI 추천/AI 생성 검수 3탭)·NewProjectModal·ImportTestCaseModal, views/cycle/ List·Detail + TcPickerModal·ExecutionPanel, views/defect/ List·Detail·Form)
       └─ router/index.js
 ```
 
@@ -189,6 +189,7 @@ ai-tms/
 | PUT | `/api/test-cases/{id}/requirements` `{atomicRequirementIds}` | 연결 요구사항 교체 ('연결된 요구사항' 탭) |
 | GET | `/api/test-cases/{id}/runs` | 실행 이력 (모든 차수, 시간 역순, 데이터 행 포함) |
 | PATCH | `/api/test-cases/{id}/review` `{reviewStatus}` | AI 추천 TC 승인/반려 (검토자=CurrentUser) |
+| PATCH | `/api/test-cases/review/batch` `{testCaseIds, reviewStatus}` | **검수함 일괄 승인/반려** — 존재하지 않는 id가 섞이면 전체 실패(404, 트랜잭션 롤백), 중복 id는 1건으로. `{updated}` 반환 |
 | GET / POST | `/api/requirements?projectId`, `/api/requirements` | 요구사항 목록(원자·연결TC 수) / 등록(MANUAL, REQ-### 채번) |
 | GET | `/api/requirements/{id}` | 상세 + 원자 요구사항 + 원자별 커버 TC(`atomics[].testCases`, Traceability) |
 | GET | `/api/requirements/atomics?projectId` | 프로젝트 원자 요구사항 전체(원문 코드·제목 포함) — TC 폼 선택용 |
@@ -239,6 +240,7 @@ ai-tms/
 ### AI 추천/검토 규칙
 - **추천 잡(recommendation_job):** `RecommendationJobService.start` 가 RUNNING 잡을 만들어 즉시 반환하고 `recommendationExecutor`(스레드풀 2~4)에서 `RequirementService.recommend`를 실행 → 끝나면 SUCCEEDED(결과 요약 `result_json`)/FAILED(`error_message`)로 갱신. 잡 갱신은 추천 트랜잭션과 분리. 서버 시작 시 끝나지 못한 잡은 FAILED 처리. 상태 enum은 프로젝트 규칙대로 대문자. `atomic_requirement_id`는 NULL=요구사항 전체(현재 항상 NULL, 원자 단위 요청용 예약) — 실행 단위 컬럼은 `requirement_id`.
 - **화면(요구사항 탭):** '✨ AI 추천 요청' → 잡 생성 → 2초 폴링. `RecommendationStatusBadge`(진행 중 스피너 / 실패 시 클릭 재요청)를 요구사항 행과 원자 요구사항 행에 표시, 성공하면 뱃지 제거 + 결과(생성 DRAFT TC·유사도) 표시 + 목록/커버 TC 자동 새로고침. 재진입 시 latest 잡으로 복원.
+- **검수함 화면(2026-09-27, `ReviewInboxView.vue`, 테스트케이스 탭 3번째 하위탭 'AI 생성 검수', 라우트 `/test-cases/review`):** 현재 프로젝트의 `reviewStatus=DRAFT` TC만 모아 보여줌(AI 추천 RULE/RAG/LLM + 엑셀 업로드 MANUAL 전부 포함 — 출처 무관하게 DRAFT 전체). 목록: Key·테스트케이스명·출처(LabelChip)·프로젝트/폴더·생성일시·관련 요구사항(`requirementCount`, 실제 텍스트 아님). 체크박스 다중 선택 → 상단 '✓ 일괄 승인'/'✕ 일괄 반려'(둘 다 `window.confirm` 확인 후 `PATCH /api/test-cases/review/batch`). 행 클릭은 그대로 TC 상세로 이동해 기존 1건 처리(승인/반려 버튼)도 유지. 진입 경로: 탭 클릭, 또는 **테스트케이스 목록 화면의 '검토대기' StatCard 클릭**(`TestCaseListView`, `.clickable` 커서·hover 테두리) — 이 StatCard는 대시보드가 아니라 테스트케이스 목록 화면에 있음(대시보드에는 검토대기 지표 자체가 없음).
 - 흐름: 요구사항 원문 → 원자 요구사항 분해 → 타입별 규칙(RULE)/과거 프로젝트 유사 TC(RAG)/신규 생성(LLM) → `DRAFT` TC → 사람이 승인/반려.
 - 화면에서 직접 만든 TC = source MANUAL + APPROVED (검토 대상 아님). 출처·검토상태는 TC 수정 API로 못 바꿈.
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
@@ -329,6 +331,7 @@ npm run build
 - ✅ **다크모드**(ThemeToggle, localStorage+OS 설정) + **StatCard 상단 요약**(테스트케이스/테스트수행/이슈 3화면)
 - ✅ **프로젝트 생성 위치 이동**(헤더 ProjectSelector 드롭다운) / **담당자 자유입력 콤보**(GET /api/users, UserCombo)
 - ✅ **테스트수행 자동저장**(디바운스 PATCH, 상태 표시·재시도, is_draft 폐지 후 단순화) — 테스트 106개
+- ✅ **AI 추천 검수함**(`ReviewInboxView`, DRAFT TC 모아보기 + 일괄 승인/반려 `PATCH /test-cases/review/batch`, 테스트케이스 목록 StatCard에서 진입) — 백엔드 테스트 110개
 - ✅ **폴더 삭제**(직속 내용 상위로 승격) / **엑셀 아이콘** / **테스트수행 결과 엑셀 다운로드**(이 차수만·전체 차수)
 - ✅ **'공통 테스트케이스' 마스터 프로젝트 시드**(프로젝트 3, 폴더 7개·TC 27건 — 은행권 공통/회귀 테스트 템플릿, '가져오기'로 재사용)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
