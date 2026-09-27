@@ -238,7 +238,7 @@ watch(folderKey, () => load())
       <p v-if="message" class="message">{{ message }}</p>
 
       <form class="card filters" @submit.prevent="load()">
-        <input v-model="filter.keyword" class="input keyword" placeholder="코드 / 제목 / 태그 검색" />
+        <input v-model="filter.keyword" class="input keyword" placeholder="코드 / 테스트케이스명 / 태그 검색" />
         <select v-model="filter.status" class="select">
           <option value="">전체 상태</option>
           <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
@@ -275,7 +275,7 @@ watch(folderKey, () => load())
           <thead>
             <tr>
               <th style="width: 84px">Key</th>
-              <th>제목</th>
+              <th>테스트케이스명</th>
               <th style="width: 72px">우선순위</th>
               <th style="width: 120px">폴더</th>
               <th style="width: 96px">기법</th>

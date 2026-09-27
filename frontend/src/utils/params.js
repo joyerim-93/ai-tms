@@ -35,3 +35,34 @@ export const parseCell = (text) => (/^-?\d+(\.\d+)?$/.test(text.trim()) ? Number
 
 /** 템플릿 표시용 '{name}' (Vue 보간 안에서 `}}` 충돌 방지) */
 export const braced = (name) => `{${name}}`
+
+// ── 테스트 단계 — 등록/수정 폼은 표가 아니라 '테스트 단계'/'기대결과' 단일 텍스트 영역 2개로 입력받고,
+//    내부적으로 줄 단위 test_step 행으로 변환해 그대로 저장(백엔드 엑셀 업로드의 파싱 규칙과 동일하게 맞춤).
+const STEP_NUMBER = /^\s*\d+\s*[.)]\s*/
+
+/** 텍스트를 줄 단위로 — 앞의 '1. '/'2) ' 번호는 제거, 빈 줄은 무시 */
+function lines(text) {
+  return (text ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(STEP_NUMBER, '').trim())
+    .filter(Boolean)
+}
+
+/** steps[] → 텍스트 영역 프리필(수정 시). 단계 없으면 빈 문자열 */
+export const stepsToText = (steps = []) => steps.map((s) => s.action).join('\n')
+export const expectedToText = (steps = []) => steps.map((s) => s.expectedResult ?? '').join('\n')
+
+/**
+ * '테스트 단계'/'기대결과' 텍스트 2개 → steps[] (저장용).
+ * 줄 수가 같으면 단계별로 짝짓고, 다르면 기대결과 전체를 마지막 단계에 몰아넣음.
+ */
+export function pairSteps(stepsText, expectedText) {
+  const actions = lines(stepsText)
+  const expecteds = lines(expectedText)
+  if (actions.length === 0) return []
+  const paired = actions.length === expecteds.length
+  return actions.map((action, i) => ({
+    action,
+    expectedResult: paired ? expecteds[i] : i === actions.length - 1 ? expecteds.join('\n') || null : null,
+  }))
+}

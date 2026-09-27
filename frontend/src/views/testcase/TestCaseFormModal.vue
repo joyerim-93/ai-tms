@@ -6,7 +6,7 @@ import { folderApi } from '@/api/projects'
 import { useProjectStore } from '@/stores/projectStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
-import { extractVariables, braced } from '@/utils/params'
+import { extractVariables, braced, expectedToText, pairSteps, stepsToText } from '@/utils/params'
 import BaseModal from '@/components/BaseModal.vue'
 
 // 등록/수정 공용 팝업. 요구사항 연결은 여기서 다루지 않음 — 저장 후 상세의 '연결된 요구사항' 탭에서 연결
@@ -22,17 +22,17 @@ const { currentProjectId, currentProject } = storeToRefs(useProjectStore())
 const form = reactive({
   folderId: props.defaultFolderId ?? '',
   title: '',
-  module: '',
+  module: '',              // 화면에서는 숨김(더 이상 안 씀) — 있던 값은 그대로 보존해서 저장
   priority: 'MEDIUM',
   status: 'ACTIVE',
   tags: '',
   technique: '',
   isParameterized: false,
   precondition: '',
-  steps: [{ action: '', expectedResult: '' }],
+  stepsText: '',           // '테스트 단계' 단일 텍스트 영역(줄 단위) — 저장 시 steps[] 로 변환
+  expectedText: '',        // '기대결과' 단일 텍스트 영역
 })
 const tcAuthor = ref(null)                   // 수정 시 기존 작성자(변경 불가)
-const modules = ref([])
 const folders = ref([])        // 평면 [{ id, name, depth, path }]
 const tcProject = ref(null)    // 수정 시 TC 소유 프로젝트 { id, name }
 const saving = ref(false)
@@ -58,7 +58,8 @@ onMounted(async () => {
       technique: tc.technique ?? '',
       isParameterized: !!tc.isParameterized,
       precondition: tc.precondition ?? '',
-      steps: tc.steps.map(({ action, expectedResult }) => ({ action, expectedResult: expectedResult ?? '' })),
+      stepsText: stepsToText(tc.steps),
+      expectedText: expectedToText(tc.steps),
     })
   } catch (e) {
     error.value = e.message
@@ -66,36 +67,23 @@ onMounted(async () => {
 })
 
 async function loadProjectOptions(projectId) {
-  const [tree, mods] = await Promise.all([
-    folderApi.tree(projectId),
-    testCaseApi.modules(projectId).catch(() => []),
-  ])
-  folders.value = flattenFolders(tree.roots)
-  modules.value = mods
+  folders.value = flattenFolders((await folderApi.tree(projectId)).roots)
 }
 
-const variables = computed(() => extractVariables(form.steps))
-
-const addStep = () => form.steps.push({ action: '', expectedResult: '' })
-const removeStep = (i) => form.steps.splice(i, 1)
-function moveStep(i, delta) {
-  const j = i + delta
-  if (j < 0 || j >= form.steps.length) return
-  ;[form.steps[i], form.steps[j]] = [form.steps[j], form.steps[i]]
-}
+// 파라미터화 토글의 '단계에서 찾은 변수' 힌트용 — 저장할 형태(steps[])로 미리 변환해서 검사
+const variables = computed(() => extractVariables(pairSteps(form.stepsText, form.expectedText)))
 
 async function save() {
   error.value = ''
-  // 완전히 빈 단계 행은 제외, 기대결과만 있는 행은 서버 검증에서 걸러지도록 전송
-  const steps = form.steps.filter((s) => s.action.trim() || s.expectedResult.trim())
   saving.value = true
   try {
+    const { stepsText, expectedText, ...rest } = form
     const body = {
-      ...form,
+      ...rest,
       projectId: currentProjectId.value, // 등록 시에만 사용 (수정 시 서버에서 무시)
       folderId: form.folderId || null,
       technique: form.technique || null,
-      steps,
+      steps: pairSteps(stepsText, expectedText),
     }
     const saved = isEdit.value ? await testCaseApi.update(id, body) : await testCaseApi.create(body)
     emit('saved', saved)
@@ -131,15 +119,8 @@ async function save() {
           <div class="readonly">{{ tcAuthor ?? '-' }}</div>
         </div>
         <div class="span-4">
-          <label class="label required">제목</label>
+          <label class="label required">테스트케이스명</label>
           <input v-model="form.title" class="input" maxlength="300" required />
-        </div>
-        <div class="span-2">
-          <label class="label">모듈</label>
-          <input v-model="form.module" class="input" list="module-options" maxlength="100" placeholder="예: 인증" />
-          <datalist id="module-options">
-            <option v-for="m in modules" :key="m" :value="m" />
-          </datalist>
         </div>
         <div>
           <label class="label required">우선순위</label>
@@ -183,34 +164,29 @@ async function save() {
       </div>
     </section>
 
-    <section>
-      <div class="steps-header">
-        <div class="card-title">테스트 단계</div>
-        <button type="button" class="btn btn-sm" @click="addStep">+ 단계 추가</button>
+    <section class="section">
+      <div class="grid">
+        <div class="span-2">
+          <label class="label required">테스트 단계</label>
+          <textarea
+            v-model="form.stepsText"
+            class="textarea steps-input"
+            maxlength="4000"
+            required
+            placeholder="한 줄에 하나씩 순서대로 입력 (앞의 '1. ' 번호는 자동으로 무시됩니다)"
+          />
+        </div>
+        <div class="span-2">
+          <label class="label required">기대결과</label>
+          <textarea
+            v-model="form.expectedText"
+            class="textarea steps-input"
+            maxlength="4000"
+            required
+            placeholder="테스트 단계와 같은 줄 수로 적으면 단계별로 짝지어지고, 한 줄(전체 결과)만 적으면 마지막 단계에 반영됩니다."
+          />
+        </div>
       </div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th style="width: 50px">No</th>
-            <th>수행 절차 <span class="error-text">*</span></th>
-            <th>기대 결과</th>
-            <th style="width: 120px"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(s, i) in form.steps" :key="i">
-            <td>{{ i + 1 }}</td>
-            <td><textarea v-model="s.action" class="textarea step-input" maxlength="2000" /></td>
-            <td><textarea v-model="s.expectedResult" class="textarea step-input" maxlength="2000" /></td>
-            <td class="step-buttons">
-              <button type="button" class="btn btn-sm" :disabled="i === 0" @click="moveStep(i, -1)">↑</button>
-              <button type="button" class="btn btn-sm" :disabled="i === form.steps.length - 1" @click="moveStep(i, 1)">↓</button>
-              <button type="button" class="btn btn-sm btn-danger" @click="removeStep(i)">✕</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="!form.steps.length" class="empty">단계가 없습니다. ‘단계 추가’를 눌러 주세요.</div>
     </section>
     </form>
 
@@ -280,18 +256,9 @@ async function save() {
 .span-4 {
   grid-column: span 4;
 }
-.steps-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-.step-input {
-  min-height: 56px;
-}
-.step-buttons {
-  white-space: nowrap;
-}
-.step-buttons .btn + .btn {
-  margin-left: var(--space-1);
+.steps-input {
+  min-height: 140px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
 }
 </style>
