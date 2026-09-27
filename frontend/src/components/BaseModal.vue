@@ -44,7 +44,7 @@ const emit = defineEmits(['close'])
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
 }
 .modal-header {
   border-bottom: 1px solid var(--border);

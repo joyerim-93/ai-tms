@@ -96,98 +96,103 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal :title="isEdit ? '테스트케이스 수정' : '테스트케이스 등록'" width="900px" @close="emit('close')">
+  <BaseModal :title="isEdit ? '테스트케이스 수정' : '테스트케이스 등록'" width="1120px" @close="emit('close')">
     <form id="tc-form" @submit.prevent="save">
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <section class="section">
-      <div class="card-title">기본 정보</div>
-      <div class="grid">
-        <div class="span-2">
-          <label class="label">프로젝트</label>
-          <div class="readonly">{{ (isEdit ? tcProject?.name : currentProject?.name) ?? '-' }}</div>
+    <div class="layout">
+      <!-- 좌측: 기본 정보 -->
+      <section class="col">
+        <div class="card-title">기본 정보</div>
+        <div class="grid">
+          <div>
+            <label class="label">프로젝트</label>
+            <div class="readonly">{{ (isEdit ? tcProject?.name : currentProject?.name) ?? '-' }}</div>
+          </div>
+          <div>
+            <label class="label">폴더</label>
+            <select v-model="form.folderId" class="select">
+              <option value="">미분류</option>
+              <option v-for="f in folders" :key="f.id" :value="f.id">{{ indentLabel(f) }}</option>
+            </select>
+          </div>
+          <div v-if="isEdit" class="span-2">
+            <label class="label">작성자</label>
+            <div class="readonly">{{ tcAuthor ?? '-' }}</div>
+          </div>
+          <div class="span-2">
+            <label class="label required">테스트케이스명</label>
+            <input v-model="form.title" class="input" maxlength="300" required />
+          </div>
+          <div>
+            <label class="label required">우선순위</label>
+            <select v-model="form.priority" class="select">
+              <option v-for="(label, key) in PRIORITY" :key="key" :value="key">{{ label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">상태</label>
+            <select v-model="form.status" class="select">
+              <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">테스트 기법</label>
+            <select v-model="form.technique" class="select">
+              <option value="">-</option>
+              <option v-for="(label, key) in TECHNIQUE" :key="key" :value="key">{{ label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">태그</label>
+            <input v-model="form.tags" class="input" maxlength="500" placeholder="콤마 구분" />
+          </div>
+          <div class="span-2">
+            <label class="param-toggle">
+              <input v-model="form.isParameterized" type="checkbox" />
+              <span>
+                <strong>파라미터화</strong>
+                <span class="muted">— 단계에 <code>{변수}</code>, ‘데이터셋’ 탭에서 값 입력. <code>{expected}</code>는 행별 기대결과.</span>
+              </span>
+            </label>
+            <p v-if="form.isParameterized && variables.length" class="muted small vars">
+              변수: <code v-for="v in variables" :key="v">{{ braced(v) }}</code>
+            </p>
+          </div>
+          <div class="span-2">
+            <label class="label">사전조건 <span class="muted">(선택)</span></label>
+            <textarea v-model="form.precondition" class="textarea precondition-input" maxlength="2000" />
+          </div>
         </div>
-        <div class="span-2">
-          <label class="label">폴더</label>
-          <select v-model="form.folderId" class="select">
-            <option value="">미분류</option>
-            <option v-for="f in folders" :key="f.id" :value="f.id">{{ indentLabel(f) }}</option>
-          </select>
-        </div>
-        <div v-if="isEdit" class="span-2">
-          <label class="label">작성자</label>
-          <div class="readonly">{{ tcAuthor ?? '-' }}</div>
-        </div>
-        <div class="span-4">
-          <label class="label required">테스트케이스명</label>
-          <input v-model="form.title" class="input" maxlength="300" required />
-        </div>
-        <div>
-          <label class="label required">우선순위</label>
-          <select v-model="form.priority" class="select">
-            <option v-for="(label, key) in PRIORITY" :key="key" :value="key">{{ label }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">상태</label>
-          <select v-model="form.status" class="select">
-            <option v-for="(label, key) in TC_STATUS" :key="key" :value="key">{{ label }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">테스트 기법</label>
-          <select v-model="form.technique" class="select">
-            <option value="">-</option>
-            <option v-for="(label, key) in TECHNIQUE" :key="key" :value="key">{{ label }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">태그</label>
-          <input v-model="form.tags" class="input" maxlength="500" placeholder="콤마로 구분 (예: smoke,login)" />
-        </div>
-        <div class="span-4">
-          <label class="param-toggle">
-            <input v-model="form.isParameterized" type="checkbox" />
-            <span>
-              <strong>파라미터화 (데이터 기반 반복 실행)</strong>
-              <span class="muted">— 단계에 <code>{변수}</code>를 쓰고, 저장 후 ‘데이터셋’ 탭에서 행마다 값을 넣습니다. <code>{expected}</code>는 행별 기대결과.</span>
-            </span>
-          </label>
-          <p v-if="form.isParameterized && variables.length" class="muted small vars">
-            단계에서 찾은 변수: <code v-for="v in variables" :key="v">{{ braced(v) }}</code>
-          </p>
-        </div>
-        <div class="span-4">
-          <label class="label">사전조건</label>
-          <textarea v-model="form.precondition" class="textarea" maxlength="2000" />
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="section">
-      <div class="grid">
-        <div class="span-2">
-          <label class="label required">테스트 단계</label>
-          <textarea
-            v-model="form.stepsText"
-            class="textarea steps-input"
-            maxlength="4000"
-            required
-            placeholder="한 줄에 하나씩 순서대로 입력 (앞의 '1. ' 번호는 자동으로 무시됩니다)"
-          />
+      <!-- 우측: 절차 · 기대결과 -->
+      <section class="col">
+        <div class="card-title">절차 · 기대결과</div>
+        <div class="steps-col">
+          <div>
+            <label class="label required">테스트 단계</label>
+            <textarea
+              v-model="form.stepsText"
+              class="textarea steps-input"
+              maxlength="4000"
+              required
+              placeholder="한 줄에 하나씩 순서대로 입력 (앞의 '1. ' 번호는 자동으로 무시됩니다)"
+            />
+          </div>
+          <div>
+            <label class="label required">기대결과</label>
+            <textarea
+              v-model="form.expectedText"
+              class="textarea steps-input"
+              maxlength="4000"
+              required
+              placeholder="단계와 같은 줄 수면 단계별로 짝지어지고, 한 줄만 적으면 마지막 단계에 반영됩니다."
+            />
+          </div>
         </div>
-        <div class="span-2">
-          <label class="label required">기대결과</label>
-          <textarea
-            v-model="form.expectedText"
-            class="textarea steps-input"
-            maxlength="4000"
-            required
-            placeholder="테스트 단계와 같은 줄 수로 적으면 단계별로 짝지어지고, 한 줄(전체 결과)만 적으면 마지막 단계에 반영됩니다."
-          />
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
     </form>
 
     <template #footer>
@@ -203,19 +208,29 @@ async function save() {
 </template>
 
 <style scoped>
-.section {
-  margin-bottom: var(--space-4);
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+.col .card-title {
+  margin-bottom: var(--space-2);
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2) var(--space-3);
+}
+.grid .label,
+.steps-col .label {
+  margin-bottom: 2px;
 }
 .param-toggle {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
@@ -232,7 +247,7 @@ async function save() {
   font-family: var(--font-mono);
 }
 .vars {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-1) 0 0;
 }
 .small {
   font-size: var(--font-size-xs);
@@ -253,11 +268,16 @@ async function save() {
 .span-2 {
   grid-column: span 2;
 }
-.span-4 {
-  grid-column: span 4;
+.precondition-input {
+  min-height: 48px;
+}
+.steps-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .steps-input {
-  min-height: 140px;
+  min-height: 118px;
   font-family: var(--font-mono);
   white-space: pre-wrap;
 }
