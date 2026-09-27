@@ -4,7 +4,6 @@ import { storeToRefs } from 'pinia'
 import { testCaseApi } from '@/api/testCases'
 import { folderApi } from '@/api/projects'
 import { useProjectStore } from '@/stores/projectStore'
-import { useAuthStore } from '@/stores/authStore'
 import { PRIORITY, TC_STATUS, TECHNIQUE } from '@/constants/labels'
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import { extractVariables, braced } from '@/utils/params'
@@ -19,7 +18,6 @@ const emit = defineEmits(['close', 'saved'])
 const id = props.testCaseId
 const isEdit = computed(() => !!id)
 const { currentProjectId, currentProject } = storeToRefs(useProjectStore())
-const auth = useAuthStore()
 
 const form = reactive({
   folderId: props.defaultFolderId ?? '',
@@ -128,9 +126,9 @@ async function save() {
             <option v-for="f in folders" :key="f.id" :value="f.id">{{ indentLabel(f) }}</option>
           </select>
         </div>
-        <div class="span-2">
+        <div v-if="isEdit" class="span-2">
           <label class="label">작성자</label>
-          <div class="readonly">{{ isEdit ? (tcAuthor ?? '-') : auth.currentUserName }}</div>
+          <div class="readonly">{{ tcAuthor ?? '-' }}</div>
         </div>
         <div class="span-4">
           <label class="label required">제목</label>

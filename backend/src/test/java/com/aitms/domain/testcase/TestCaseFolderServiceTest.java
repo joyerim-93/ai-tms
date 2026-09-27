@@ -95,6 +95,18 @@ class TestCaseFolderServiceTest {
     }
 
     @Test
+    void 공통_테스트케이스_프로젝트로는_가져올_수_없지만_반대_방향은_허용된다() {
+        // 프로젝트 3 = '공통 테스트케이스'(COMMON-TC) — 대상으로 가져오기 시도하면 거부
+        assertThatThrownBy(() -> testCaseService.importFrom(new ImportRequest(3L, List.of(12L), null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("공통 테스트케이스");
+
+        // 반대 방향: 공통 테스트케이스(3)의 승인 TC를 일반 프로젝트(1)로 가져오는 것은 그대로 허용
+        List<TestCase> imported = testCaseService.importFrom(new ImportRequest(1L, List.of(15L), null));
+        assertThat(imported).singleElement().satisfies(tc -> assertThat(tc.getOriginProjectId()).isEqualTo(3L));
+    }
+
+    @Test
     void 가져오기_검색은_현재_프로젝트를_제외한_승인_TC만() {
         TestCaseSearch s = new TestCaseSearch();
         s.setExcludeProjectId(1L);

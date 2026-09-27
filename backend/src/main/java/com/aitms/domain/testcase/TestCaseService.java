@@ -12,6 +12,7 @@ import com.aitms.common.ApiException;
 import com.aitms.common.CurrentUser;
 import com.aitms.common.PageResponse;
 import com.aitms.common.Priority;
+import com.aitms.domain.project.ProjectService;
 import com.aitms.domain.recommend.TcRecommendation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ public class TestCaseService {
     private final TestCaseFolderService folderService;
     private final TestCaseDatasetMapper datasetMapper;
     private final ObjectMapper objectMapper;
+    private final ProjectService projectService;
 
     /** folderId 지정 시 하위 폴더 TC까지 포함 */
     public PageResponse<TestCase> search(TestCaseSearch search) {
@@ -181,8 +183,14 @@ public class TestCaseService {
      *
      * @return 복제된 TC 목록 (같은 프로젝트·미승인·폐기 TC는 건너뜀)
      */
+    /** '공통 테스트케이스' 마스터 프로젝트는 자체 관리만 — 다른 프로젝트 TC를 이 프로젝트로 복사해올 수 없음 */
+    static final String COMMON_PROJECT_CODE = "COMMON-TC";
+
     @Transactional
     public List<TestCase> importFrom(ImportRequest req) {
+        if (COMMON_PROJECT_CODE.equals(projectService.get(req.projectId()).getCode())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "'공통 테스트케이스' 프로젝트로는 다른 프로젝트의 TC를 가져올 수 없습니다.");
+        }
         folderService.assertInProject(req.folderId(), req.projectId());
         List<TestCase> imported = new ArrayList<>();
         for (Long sourceId : req.testCaseIds()) {

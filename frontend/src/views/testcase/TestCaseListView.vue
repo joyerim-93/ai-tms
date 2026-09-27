@@ -9,6 +9,7 @@ import { TC_STATUS, TC_SOURCE, REVIEW_STATUS, TECHNIQUE } from '@/constants/labe
 import { flattenFolders, indentLabel } from '@/utils/folders'
 import FolderTree from '@/components/FolderTree.vue'
 import TestCaseKeyBadge from '@/components/TestCaseKeyBadge.vue'
+import PriorityChip from '@/components/PriorityChip.vue'
 import StatCard from '@/components/StatCard.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RepoTabs from './RepoTabs.vue'
@@ -20,7 +21,9 @@ import ExcelIcon from '@/components/ExcelIcon.vue'
 // 좌: 폴더 트리 / 우: 선택 폴더(하위 포함)의 TC 목록. 선택 상태는 ?folder= (all | unfiled | id) 로 유지
 const route = useRoute()
 const router = useRouter()
-const { currentProjectId: projectId } = storeToRefs(useProjectStore())
+const { currentProjectId: projectId, currentProject } = storeToRefs(useProjectStore())
+// '공통 테스트케이스'(마스터 프로젝트)는 자체 관리만 — 다른 프로젝트 TC를 여기로 복사해올 수 없음(반대 방향은 그대로 허용)
+const isCommonProject = computed(() => currentProject.value?.code === 'COMMON-TC')
 
 const tree = ref({ roots: [], totalCount: 0, unfiledCount: 0 })
 const counts = ref({ active: 0, draft: 0 }) // 상단 StatCard용 — 전체/미분류는 폴더 트리 값 재사용
@@ -226,7 +229,9 @@ watch(folderKey, () => load())
         <h3 class="folder-title">{{ folderLabel }}</h3>
         <div class="actions">
           <button class="btn" :disabled="!projectId" @click="showExcel = true"><ExcelIcon />엑셀 업로드</button>
-          <button class="btn" :disabled="!projectId" @click="showImport = true">다른 프로젝트에서 가져오기</button>
+          <button v-if="!isCommonProject" class="btn" :disabled="!projectId" @click="showImport = true">
+            다른 프로젝트에서 가져오기
+          </button>
           <button class="btn btn-primary" :disabled="!projectId" @click="showForm = true">+ 테스트케이스 추가</button>
         </div>
       </div>
@@ -271,6 +276,7 @@ watch(folderKey, () => load())
             <tr>
               <th style="width: 84px">Key</th>
               <th>제목</th>
+              <th style="width: 72px">우선순위</th>
               <th style="width: 120px">폴더</th>
               <th style="width: 96px">기법</th>
               <th style="width: 76px">출처</th>
@@ -287,6 +293,7 @@ watch(folderKey, () => load())
                 <span v-if="tc.status === 'DEPRECATED'" class="chip chip-muted">폐기</span>
                 <span v-if="tc.originProjectName" class="chip chip-muted" :title="`원본: ${tc.originProjectName}`">가져옴</span>
               </td>
+              <td><PriorityChip :priority="tc.priority" /></td>
               <td class="small">{{ tc.folderName ?? '미분류' }}</td>
               <td><span v-if="tc.technique" class="chip chip-muted">{{ TECHNIQUE[tc.technique] }}</span></td>
               <td><LabelChip :map="TC_SOURCE" :value="tc.source" /></td>

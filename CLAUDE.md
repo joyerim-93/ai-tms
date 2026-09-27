@@ -130,7 +130,7 @@ ai-tms/
 ## 컨벤션
 - **색상/간격 하드코딩 금지** → 반드시 `var(--*)`. 새 색이 필요하면 theme.css의 '확장 토큰'에 추가(다크 추가 시 같은 이름으로 재정의).
 - 데스크탑 전용(min-width 1200px), 반응형 고려하지 않음.
-- 테스트 결과·이슈 상태·차수 상태는 모두 `<StatusBadge :status />`, 우선순위는 `<PriorityChip />`, 심각도·출처·검토상태는 `<LabelChip :map :value />`.
+- 테스트 결과·이슈 상태·차수 상태는 모두 `<StatusBadge :status />`, 우선순위는 `<PriorityChip />`(TC 목록·상세 둘 다 표시), 심각도·출처·검토상태는 `<LabelChip :map :value />`.
 - 요약 카드는 `<StatCard title value unit sub />` 재사용 (다른 화면 상단 요약에도 사용 예정).
 - 공통 CSS 클래스(base.css): `.card .card-title .btn(.btn-primary/.btn-danger/.btn-sm) .input .select .textarea .label(.required) .table(tr.clickable) .chip(-high/-medium/-low/-muted) .page-actions .empty .muted .mono .error-text .stat-row`(StatCard 4열 그리드, 화면 상단 요약). 새 화면은 이것부터 재사용.
 - Frontend API 호출은 `src/api/<도메인>.js` 경유, 에러는 `e.message`를 화면에 표시.
@@ -204,6 +204,7 @@ ai-tms/
 - 차수에는 **같은 프로젝트의** ACTIVE·APPROVED TC만 등록.
 - 폴더 선택 상태는 URL `?folder=all|unfiled|<id>`로 유지(상세→목록 복귀 시 같은 폴더).
 - **프로젝트 생성은 헤더 `ProjectSelector` 드롭다운**(맨 아래 '+ 새 프로젝트 만들기' → `NewProjectModal` 팝업, `components/`)에서만. RepoTabs에는 더 이상 없음. 프로젝트 목록·조회 API는 로그인 사용자 누구에게나 공개(멤버십/권한 제한 없음 — RBAC 미도입).
+- **'공통 테스트케이스'(코드 `COMMON-TC`)는 가져오기 대상이 될 수 없음** — 현재 프로젝트가 이 프로젝트면 '다른 프로젝트에서 가져오기' 버튼 자체를 숨김(`TestCaseListView`), 서버도 `TestCaseService.importFrom`에서 대상 프로젝트 code가 `COMMON-TC`면 400으로 거부(직접 API 호출 방어). 반대 방향(공통 → 일반 프로젝트로 가져오기)은 그대로 허용 — 코드로 하드코딩된 특례라 마스터 프로젝트가 여러 개로 늘면 `project.is_import_source_only` 같은 플래그로 일반화 필요.
 - **프로젝트 필터링 원칙(v4-4):** 목록·집계 API는 모두 `projectId` 쿼리(또는 차수/수행항목/이슈 id처럼 이미 프로젝트가 정해진 경로)로 조회. 예외는 설계상 전체 대상인 것만 — 규칙 카탈로그, '다른 프로젝트에서 가져오기' 검색(`excludeProjectId`), **RAG 검색(3-2: project_id로 제한하지 않고 전체 프로젝트의 APPROVED·ACTIVE TC 대상, 현재 프로젝트 TC 포함 여부는 구현 시 결정)**.
   경로는 문서 초안과 다르게 기존 `/api/dashboard`, `/api/cycles` 유지(사용자 확인).
 - 프로젝트 전환 시 TC/차수/이슈의 상세·수정 화면(`params.id`)에 있으면 해당 목록으로 이동.
@@ -222,6 +223,7 @@ ai-tms/
 - 샘플: TC-114(가입금액 경계값, 데이터 4행)가 TC-101~104를 대체 → 101~104는 DEPRECATED.
 
 - **TC 등록/수정 팝업에는 요구사항 연결이 없음.** 생성 후 상세의 '연결된 요구사항' 탭에서 연결. `PUT /api/test-cases/{id}`는 `atomicRequirementIds`를 **생략(null)하면 기존 연결 유지**, 보내면 전체 교체.
+- **등록 팝업에는 '작성자' 입력/표시가 없음**(로그인 사용자로 자동 고정되므로) — 수정 팝업에서는 기존 작성자를 읽기 전용으로 표시. `author_id`는 항상 `CurrentUser.id()`.
 - '다른 프로젝트에서 가져오기' 검색은 `keywordInProjectName=true`로 키워드를 **프로젝트명에도 LIKE** 적용(제목·코드·태그·프로젝트명). 일반 목록 검색은 프로젝트명 조건을 쓰지 않음.
 
 ### 엑셀 업로드 규칙 (TestCaseExcelService)
