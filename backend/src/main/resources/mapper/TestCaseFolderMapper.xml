@@ -50,6 +50,18 @@
         UPDATE test_case_folder SET name = #{name} WHERE id = #{id}
     </update>
 
+    <update id="reparentChildFolders">
+        UPDATE test_case_folder SET parent_folder_id = #{targetParentId} WHERE parent_folder_id = #{folderId}
+    </update>
+
+    <update id="reparentTestCases">
+        UPDATE test_case SET folder_id = #{targetParentId} WHERE folder_id = #{folderId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM test_case_folder WHERE id = #{id}
+    </delete>
+
     <!-- 같은 부모 아래 마지막 순서로 추가 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO test_case_folder (project_id, parent_folder_id, name, sort_order)

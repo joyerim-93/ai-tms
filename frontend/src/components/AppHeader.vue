@@ -48,28 +48,33 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
 <template>
   <header class="app-header">
     <div class="inner">
-      <RouterLink to="/" class="logo">AI-TMS</RouterLink>
-      <nav class="menu">
-        <RouterLink v-for="m in menus" :key="m.to" :to="m.to" class="menu-item" :class="{ active: isActive(m.to) }">
-          {{ m.label }}
-        </RouterLink>
-      </nav>
-      <ProjectSelector class="selector" />
-      <ThemeToggle />
-      <div ref="userRoot" class="user-menu">
-        <button
-          type="button"
-          class="user-badge"
-          :title="`${auth.user?.username} (${auth.user?.role})`"
-          :aria-expanded="menuOpen"
-          aria-haspopup="menu"
-          @click="menuOpen = !menuOpen"
-        >
-          {{ auth.currentUserName }} 님
-        </button>
-        <ul v-if="menuOpen" class="menu-dropdown" role="menu">
-          <li role="menuitem" class="menu-option" @click="logout">로그아웃</li>
-        </ul>
+      <div class="left">
+        <RouterLink to="/" class="logo">AI-TMS</RouterLink>
+        <nav class="menu">
+          <RouterLink v-for="m in menus" :key="m.to" :to="m.to" class="menu-item" :class="{ active: isActive(m.to) }">
+            {{ m.label }}
+          </RouterLink>
+        </nav>
+      </div>
+
+      <div class="right">
+        <ProjectSelector />
+        <ThemeToggle />
+        <div ref="userRoot" class="user-menu">
+          <button
+            type="button"
+            class="user-badge"
+            :title="`${auth.user?.username} (${auth.user?.role})`"
+            :aria-expanded="menuOpen"
+            aria-haspopup="menu"
+            @click="menuOpen = !menuOpen"
+          >
+            {{ auth.currentUserName }} 님
+          </button>
+          <ul v-if="menuOpen" class="menu-dropdown" role="menu">
+            <li role="menuitem" class="menu-option" @click="logout">로그아웃</li>
+          </ul>
+        </div>
       </div>
     </div>
   </header>
@@ -86,9 +91,19 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
 .inner {
   display: flex;
   align-items: stretch;
-  gap: var(--space-6);
+  justify-content: space-between;
   height: var(--header-height);
   padding: 0 var(--space-5);
+}
+.left {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-6);
+}
+.right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 .logo {
   display: flex;
@@ -98,12 +113,8 @@ const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWit
   font-weight: 800;
   letter-spacing: -0.3px;
 }
-.selector {
-  margin-left: auto;
-}
 .user-menu {
   position: relative;
-  align-self: center;
 }
 .user-badge {
   padding: var(--space-1) var(--space-3);

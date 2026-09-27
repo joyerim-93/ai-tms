@@ -112,6 +112,22 @@ public class TestCaseFolderService {
         return get(id);
     }
 
+    /**
+     * 폴더 삭제 — 안의 TC·직속 하위 폴더는 삭제되는 폴더의 부모(없으면 프로젝트 최상위/미분류)로 승격시킨 뒤 삭제.
+     * (하위 폴더 안에 더 중첩된 내용은 그 하위 폴더를 따라 그대로 이동 — 이 폴더의 '직속'만 한 단계 올라감)
+     */
+    @Transactional
+    public void delete(Long projectId, Long id) {
+        TestCaseFolder folder = get(id);
+        if (!folder.getProjectId().equals(projectId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "다른 프로젝트의 폴더입니다.");
+        }
+        Long targetParentId = folder.getParentFolderId();
+        mapper.reparentChildFolders(id, targetParentId);
+        mapper.reparentTestCases(id, targetParentId);
+        mapper.delete(id);
+    }
+
     private static int sumTotals(TestCaseFolder folder) {
         int total = folder.getTestCaseCount();
         for (TestCaseFolder child : folder.getChildren()) {

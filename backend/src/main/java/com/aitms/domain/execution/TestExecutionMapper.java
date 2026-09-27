@@ -11,6 +11,9 @@ public interface TestExecutionMapper {
 
     List<TestExecution> findByCycle(@Param("cycleId") Long cycleId, @Param("search") ExecutionSearch search);
 
+    /** 엑셀 '전체 차수 다운로드' — 프로젝트의 모든 차수, 차수 번호·TC 순 */
+    List<TestExecution> findByProject(Long projectId);
+
     Optional<TestExecution> findById(Long id);
 
     /** 차수와 같은 프로젝트의 ACTIVE·APPROVED 이고 아직 차수에 없는 일반 TC 등록 (TC 단위 1행), 등록 건수 반환 */

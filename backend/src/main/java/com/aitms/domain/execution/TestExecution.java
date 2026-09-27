@@ -39,4 +39,6 @@ public class TestExecution {
     private String datasetExpected;    // {expected} 치환값
     private Integer datasetOrder;
     private String lastComment;        // 최근 결과 입력 코멘트
+    private Integer cycleNo;           // 전체 차수 엑셀 내보내기용
+    private String cycleName;
 }

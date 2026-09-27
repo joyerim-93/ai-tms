@@ -148,4 +148,41 @@ class TestCaseFolderServiceTest {
         plain.setKeyword("적금");
         assertThat(testCaseService.search(plain).items()).isEmpty();
     }
+
+    @Test
+    void 폴더를_삭제하면_직속_하위_폴더는_부모로_승격되고_더_깊은_중첩은_유지된다() {
+        // 금리 정책(2) 아래: 거치기간별 금리(4), 우대금리(5) — 금리 정책엔 직속 TC가 없음
+        folderService.delete(1L, 2L);
+
+        FolderTree tree = folderService.tree(1L);
+        assertThat(tree.roots()).extracting(TestCaseFolder::getName).containsExactly("가입 프로세스", "거치기간별 금리", "우대금리");
+        assertThat(testCaseService.get(5L).getFolderId()).isEqualTo(4L); // 더 안쪽 TC는 그대로
+    }
+
+    @Test
+    void 폴더를_삭제하면_직속_TC는_부모_폴더로_이동한다() {
+        // 우대금리(5, 부모=금리 정책 2)의 직속 TC 8·9 → 부모(2)로 이동
+        folderService.delete(1L, 5L);
+        assertThat(testCaseService.get(8L).getFolderId()).isEqualTo(2L);
+        assertThat(testCaseService.get(9L).getFolderId()).isEqualTo(2L);
+    }
+
+    @Test
+    void 최상위_폴더의_직속_TC는_삭제하면_미분류가_된다() {
+        // 가입 프로세스(1, 최상위) 삭제 → 하위 폴더 '가입금액 검증'(3)이 최상위로 승격(TC는 그대로 폴더 3 소속)
+        folderService.delete(1L, 1L);
+        assertThat(testCaseService.get(1L).getFolderId()).isEqualTo(3L);
+
+        // 이제 최상위가 된 폴더 3(직속 TC 1·2·3·4·10·14) 삭제 → 직속 TC는 미분류(NULL)
+        int unfiledBefore = folderService.tree(1L).unfiledCount();
+        folderService.delete(1L, 3L);
+        assertThat(testCaseService.get(1L).getFolderId()).isNull();
+        assertThat(folderService.tree(1L).unfiledCount()).isEqualTo(unfiledBefore + 6);
+        assertThat(folderService.tree(1L).roots()).extracting(TestCaseFolder::getName).doesNotContain("가입금액 검증");
+    }
+
+    @Test
+    void 다른_프로젝트의_폴더는_삭제할_수_없다() {
+        assertThatThrownBy(() -> folderService.delete(2L, 1L)).isInstanceOf(ApiException.class);
+    }
 }

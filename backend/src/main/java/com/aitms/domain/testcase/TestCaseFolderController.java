@@ -2,6 +2,7 @@ package com.aitms.domain.testcase;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,12 @@ public class TestCaseFolderController {
     public TestCaseFolder rename(@PathVariable Long projectId, @PathVariable Long id,
                                  @Validated @RequestBody FolderRenameRequest req) {
         return service.rename(projectId, id, req);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long projectId, @PathVariable Long id) {
+        service.delete(projectId, id);
     }
 
     @PostMapping

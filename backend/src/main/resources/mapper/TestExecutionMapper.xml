@@ -43,6 +43,25 @@
          WHERE e.id = #{id}
     </select>
 
+    <select id="findByProject" resultType="com.aitms.domain.execution.TestExecution">
+        SELECT e.*, tc.tc_code, tc.title AS tc_title, tc.module AS tc_module, tc.priority AS tc_priority,
+               tc.version AS current_tc_version, a.name AS assignee_name, x.name AS executed_by_name,
+               tc.is_parameterized AS tc_parameterized, d.row_label AS dataset_label,
+               d.param_values AS dataset_params, d.expected_result_override AS dataset_expected,
+               d.sort_order AS dataset_order,
+               (SELECT h.comment FROM test_execution_history h
+                 WHERE h.execution_id = e.id ORDER BY h.executed_at DESC, h.id DESC LIMIT 1) AS last_comment,
+               c.cycle_no, c.name AS cycle_name
+          FROM test_execution e
+          JOIN test_cycle c ON c.id = e.cycle_id
+          JOIN test_case tc ON tc.id = e.test_case_id
+          LEFT JOIN test_case_dataset d ON d.id = e.dataset_id
+          LEFT JOIN users a ON a.id = e.assignee_id
+          LEFT JOIN users x ON x.id = e.executed_by
+         WHERE c.project_id = #{projectId}
+         ORDER BY c.cycle_no, tc.id, d.sort_order, e.id
+    </select>
+
     <!-- 일반 TC(또는 데이터셋 행이 없는 파라미터화 TC): TC 단위 1행 -->
     <insert id="insertAll">
         INSERT INTO test_execution (cycle_id, test_case_id, tc_version, assignee_id)

@@ -34,6 +34,14 @@ public interface TestCaseFolderMapper {
 
     int updateName(@Param("id") Long id, @Param("name") String name);
 
+    /** 삭제되는 폴더의 직속 하위 폴더를 targetParentId(조부모, 최상위면 NULL)로 승격 */
+    int reparentChildFolders(@Param("folderId") Long folderId, @Param("targetParentId") Long targetParentId);
+
+    /** 삭제되는 폴더에 직속된 TC를 targetParentId(최상위면 NULL=미분류)로 이동 */
+    int reparentTestCases(@Param("folderId") Long folderId, @Param("targetParentId") Long targetParentId);
+
+    int delete(Long id);
+
     /** @param unfiledOnly true면 폴더 미지정 TC만 */
     int countTestCases(@Param("projectId") Long projectId, @Param("unfiledOnly") boolean unfiledOnly);
 }
