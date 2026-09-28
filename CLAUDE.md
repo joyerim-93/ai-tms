@@ -16,7 +16,7 @@
 | DB | H2 파일 모드 (`backend/data/aitms`, MySQL 모드, git 제외) |
 | Frontend | Vue 3 (`<script setup>`), Vite, vue-router 4, Pinia |
 | 인증 | **Spring Security 세션 로그인**(JSESSIONID) + CSRF 쿠키(XSRF-TOKEN→X-XSRF-TOKEN). 상세는 '### 인증' |
-| AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM ✅(Claude API, Anthropic Java SDK) — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
+| AI 추천 | 3-1 규칙기반 ✅ · 3-2 RAG ✅(키워드 유사도, 다른 프로젝트 APPROVED TC 검색) · 3-3 LLM ✅(`app.ai.llm.provider`: Claude/Anthropic Java SDK 기본, OpenAI는 JDK HttpClient 직접 호출) — `RecommendationEngine` 빈 추가만 하면 `CompositeRecommendationService`가 합침 |
 
 > Initializr 기본값이 Boot 4.x라 `build.gradle`에서 3.5.x로 수동 고정했음 (mybatis-spring-boot-starter 3.0.x 호환).
 
@@ -246,7 +246,9 @@ ai-tms/
 - **차수 등록은 ACTIVE + APPROVED TC만** (DRAFT/REJECTED는 제외).
 - 규칙기반(RULE) 추천 = **파라미터화 TC 1개 + 데이터셋 N행**. `[[text]] [[unit]] [[flag]] [[bonus]]`는 생성 시점에 원자 요구사항 값으로 치환, `{value} {option} {flag} {expected}`는 단계에 남는 데이터셋 변수. 범위 값 누락·규칙 없음은 `warnings`로 반환.
 - 저장은 `RequirementService.recommend`가 담당(`TestCaseService.createDraft`), 엔진은 후보(`TcRecommendation`)만 생성. 엔진 추가 = `RecommendationEngine` 빈 추가(LLM 3-3 예정).
-- **LLM(3-3) 규칙:** 요구사항 1건당 Claude API 1회(`LlmRecommendationService`) — 원문·원자 요구사항(id/유형/범위/조건)·**이미 연결된 TC 제목**(중복 방지)을 주고, 규칙/RAG가 놓치기 쉬운 교차 조합·예외 흐름·정합성 TC를 최대 `app.ai.llm.max-cases`(5)건 제안받음. 응답은 **구조화 출력**(`LlmProposal` 레코드 → JSON 스키마 자동 생성)이라 파싱 실패가 없음. 검증: 원자 id가 목록에 없거나 제목/단계 누락·길이 초과인 제안은 버리고 경고. 저장은 source=LLM·DRAFT·비파라미터화·미분류·해당 원자 요구사항에 링크(승인 후 사용). 모델 `app.ai.llm.model`(기본 `claude-opus-5`), 인증은 `app.ai.llm.api-key` 또는 SDK 기본(`ANTHROPIC_API_KEY` 환경변수 / `ant auth login`). **호출 실패·인증 없음·거절·잘림은 예외가 아니라 경고**로 남기고 규칙/RAG 결과는 유지. **기본값 `app.ai.llm.enabled: false`(비용 때문에 꺼둠, 2026-09-27 결정)** — 꺼져 있으면 API를 호출하지 않고 결과 경고에 'LLM 추천은 비활성화 상태입니다 (설정 app.ai.llm.enabled=false …)'를 표시하며 규칙기반·RAG는 API 키 없이 정상 동작. 켜려면 `enabled: true` + 키 설정(테스트는 gradle `systemProperty`로 꺼두고 가짜 `LlmClient` 사용). 프롬프트 캐싱·거절 fallback 미적용.
+- **LLM(3-3) 규칙:** 요구사항 1건당 LLM API 1회(`LlmRecommendationService`) — 원문·원자 요구사항(id/유형/범위/조건)·**이미 연결된 TC 제목**(중복 방지)을 주고, 규칙/RAG가 놓치기 쉬운 교차 조합·예외 흐름·정합성 TC를 최대 `app.ai.llm.max-cases`(5)건 제안받음. 응답은 **구조화 출력**(`LlmProposal` 레코드 → JSON 스키마)이라 파싱 실패가 없음. 검증: 원자 id가 목록에 없거나 제목/단계 누락·길이 초과인 제안은 버리고 경고. 저장은 source=LLM·DRAFT·비파라미터화·미분류·해당 원자 요구사항에 링크(승인 후 사용). **호출 실패·인증 없음·거절·잘림은 예외가 아니라 경고**로 남기고 규칙/RAG 결과는 유지. **기본값 `app.ai.llm.enabled: false`(비용 때문에 꺼둠, 2026-09-27 결정)** — 꺼져 있으면 API를 호출하지 않고 결과 경고에 'LLM 추천은 비활성화 상태입니다 (설정 app.ai.llm.enabled=false …)'를 표시하며 규칙기반·RAG는 API 키 없이 정상 동작. 켜려면 `enabled: true` + 키 설정(테스트는 gradle `systemProperty`로 꺼두고 가짜 `LlmClient` 사용). 프롬프트 캐싱·거절 fallback 미적용.
+  - **프로바이더 분기(2026-09-28)**: `app.ai.llm.provider`(`anthropic`(기본) | `openai`)로 `LlmClient` 구현을 `@ConditionalOnProperty`로 선택 — 정확히 하나만 빈으로 등록됨. `anthropic`은 기존 그대로 `AnthropicLlmClient`(Claude, `app.ai.llm.model`/`api-key`). `openai`는 신규 `OpenAiLlmClient` — SDK 추가 없이 JDK `HttpClient`로 OpenAI Chat Completions를 직접 호출(`app.ai.llm.openai-model` 기본 `gpt-4o-mini`, `app.ai.llm.openai-api-key` 비우면 `OPENAI_API_KEY` 환경변수), 구조화 출력은 `response_format=json_schema`(strict)를 코드로 직접 만들어서 사용(현재 `LlmProposal` 응답 전용). 로컬에서 `APP_AI_LLM_ENABLED=true APP_AI_LLM_PROVIDER=openai OPENAI_API_KEY=...`로 기동해 REQ-001 실제 호출 확인함(DRAFT TC 5건 생성). **커밋된 기본값은 여전히 `enabled: false`/`provider: anthropic`** — 이번 변경은 옵션 추가일 뿐, 상시 켜두는 것으로 바꾼 게 아님.
+  - **ai-agent(Python, `ai-agent/`, 2026-09-28 신규)**: 위 Java 백엔드와는 **별개의 독립 실행 스크립트**(`app/clients/llm_client.py`) — `LLM_PROVIDER`(`openai`|`internal`) 환경변수로 로컬 개발용 OpenAI 직접 호출 / 사내 GenAI 포탈(`GENAI_BASE_URL`+`KB_KEY`, 스펙 문서 없이 추정 구현) 분기. FastAPI 엔드포인트도 Java→Python 호출 연동도 아직 없음(둘은 서로 호출하지 않음). 실제 OpenAI 호출까지 확인함(`test_llm_call.py`). 키는 `ai-agent/.env`(git 제외)에만, `.env.example`은 플레이스홀더.
 - **RAG(3-2) 규칙:** 검색 대상 = **현재 프로젝트를 제외한** 전체 프로젝트의 APPROVED·ACTIVE TC. 점수 = max(원자 텍스트↔TC 제목·모듈·태그, ↔TC가 검증하는 원자 요구사항 텍스트)의 글자 bigram Dice + 같은 요구사항 유형 +0.1, 임계 0.3 이상, 원자 요구사항당 상위 3건. 같은 원본 TC가 여러 원자에 걸리면 가장 유사한 원자 하나에만. 채택 시 원본의 단계·데이터셋을 복사한 DRAFT(source=RAG, origin_project_id=원본 프로젝트)로 저장하고 링크는 현재 원자 요구사항에 건다. 임베딩 도입 시 `TcRetriever` 구현체만 교체.
 
 ### 테스트수행 규칙
@@ -336,9 +338,11 @@ npm run build
 - ✅ **'공통 테스트케이스' 마스터 프로젝트 시드**(프로젝트 3, 폴더 7개·TC 27건 — 은행권 공통/회귀 테스트 템플릿, '가져오기'로 재사용)
 - ✅ AI 추천 잡 상태 표시 (recommendation_job, 백그라운드 실행, 상태 뱃지·폴링)
 - ✅ 3-2 RAG 추천 (키워드 유사도, 다른 프로젝트만, 테스트 55개, 요구사항 탭에 RAG 출처·유사도 표시)
-- ✅ 3-3 LLM 신규 생성 (Claude API, 구조화 출력, 테스트 78개 — 실제 API 호출은 키가 없어 미검증)
+- ✅ 3-3 LLM 신규 생성 (구조화 출력, 테스트 78개 — 2026-09-28 `app.ai.llm.provider=openai`로 실제 API 호출까지 검증함, 아래 참고)
 - ✅ **다크모드**: `ThemeToggle`, `utils/theme.js`, theme.css 다크 팔레트
 - ✅ **StatCard 상단 요약**: 테스트케이스(전체·활성·검토대기·미분류, 검색 API 재사용) / 테스트 수행(전체 차수·진행중·종료·전체 통과율, 이미 불러온 차수 목록에서 클라이언트 계산 — API 추가 없음) / 이슈(전체·미해결·Critical·종료)
 - ✅ **테스트수행 자동저장 → TC 등록/수정 필드 정리(Zephyr) → 팝업 레이아웃(1366×768 스크롤 없이)** 3단계 순차 진행: 결과·코멘트 자동저장(위 항목), 모듈 숨김·'테스트케이스명'·단계 텍스트영역화(위 항목), `TestCaseFormModal` 2단 컬럼 + `BaseModal`/목록형 팝업(`ImportTestCaseModal`·`TcPickerModal`) 내부 스크롤 분리 + `ExecutionPanel` 여백 축소
-- ⏳ **다음:** ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산 정해지면. 그 외 후보: TC 단계 스냅샷, 프로젝트/사용자 관리 화면, 역할별 권한(RBAC) ai-agent(FastAPI /decompose)·임베딩 RAG·LLM 연동은 예산이 정해진 뒤로 보류
-- ⏳ 이후 후보: ai-agent(FastAPI /decompose) + AiAgentClient 뼈대, 다크모드 값, 테스트케이스/수행/이슈 화면 상단 StatCard, Spring Security 로그인(CurrentUser 교체), TC 단계 스냅샷, 프로젝트/사용자 관리 화면
+- ✅ **테스트케이스 목록 컬럼 정리**(Key/제목/상태만 남기고 폴더·기법·출처·우선순위·데이터셋 컬럼 제거, 제목 `min-width` 확보 — 상세 개요 탭엔 기법·출처 그대로 유지)
+- ✅ **Pretendard 폰트 self-host**(`frontend/src/assets/fonts/`, 가변폰트 1개 파일, CDN 미사용) — Windows에서 시스템 폰트(맑은 고딕)로 폴백되던 문제 해결. `--font-sans`는 이미 `'Pretendard'`를 참조 중이었고 실제 폰트 소스가 없던 게 원인이었음. KB 브랜드 폰트 나오면 `theme.css`의 `@font-face` `src`만 교체
+- ✅ **ai-agent(Python) 시작**(`ai-agent/`) + **LLM 3-3에 OpenAI 프로바이더 추가**(Java, `app.ai.llm.provider`) — 둘 다 위 표·섹션 참고. 둘은 서로 다른 독립 구현(Python ai-agent는 Java 백엔드와 미연동)
+- ⏳ **다음 후보**: ai-agent를 FastAPI로 확장 + Java→Python 실제 연동(/decompose 등), 임베딩 기반 RAG, TC 단계 스냅샷, 프로젝트/사용자 관리 화면, 역할별 권한(RBAC)
