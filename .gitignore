@@ -1,2 +1,10 @@
 .DS_Store
 backend/uploads/
+
+# ai-agent (Python) — 실제 API 키가 들어가는 .env는 절대 커밋하지 않음
+ai-agent/.env
+ai-agent/.venv/
+ai-agent/venv/
+ai-agent/__pycache__/
+ai-agent/**/__pycache__/
+*.pyc
