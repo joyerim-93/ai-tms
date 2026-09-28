@@ -3,6 +3,17 @@
  * 현재 라이트 모드만. 다크모드는 맨 아래 [data-theme='dark'] 블록에 "같은 변수명"으로 값만 추가.
  */
 
+/* Pretendard(OFL 라이선스, 오픈소스 무료 상업이용 가능) — CDN 대신 프로젝트에 직접 포함(self-host).
+   가변폰트(variable font) 1개 파일로 전체 굵기(45~920) 커버. KB 자체 브랜드 폰트가 나오면
+   이 @font-face의 src만 그 파일로 바꾸면 됨(font-family 이름은 --font-sans에서 이미 참조 중). */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('../assets/fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── 1) 문서 정의 컬러 토큰 (docs/04-DESIGN-v3.md "2. 컬러 토큰" 그대로) ── */
 :root {
   /* surfaces */
