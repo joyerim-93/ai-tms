@@ -36,7 +36,7 @@ class LlmRecommendationTest {
     @MockitoBean LlmClient llm;
 
     private LlmRecommendationService engine(boolean enabled, int max) {
-        return new LlmRecommendationService(requirementMapper, llm, enabled, max);
+        return new LlmRecommendationService(requirementMapper, llm, new LlmSettings(enabled, "test"), max);
     }
 
     private static LlmProposal.Case tc(long atomicId, String title) {
@@ -107,6 +107,24 @@ class LlmRecommendationTest {
         assertThat(res.candidates()).isEmpty();
         assertThat(res.warnings()).containsExactly(LlmRecommendationService.DISABLED_WARNING);
         verify(llm, never()).generate(any(), any(), any());
+    }
+
+    @Test
+    void 재기동_없이_토글만_바꿔도_바로_반영된다() throws Exception {
+        when(llm.generate(any(), any(), eq(LlmProposal.class)))
+                .thenReturn(new LlmProposal(List.of(tc(1L, "토글 확인용"))));
+        LlmSettings settings = new LlmSettings(false, "test");
+        LlmRecommendationService service = new LlmRecommendationService(requirementMapper, llm, settings, 5);
+
+        assertThat(service.recommend(1L).warnings()).containsExactly(LlmRecommendationService.DISABLED_WARNING);
+        verify(llm, never()).generate(any(), any(), any());
+
+        settings.setEnabled(true); // 같은 인스턴스에서 껐다 켜기만 함 — 서비스를 새로 만들지 않음
+        RecommendationResult afterOn = service.recommend(1L);
+
+        assertThat(afterOn.warnings()).isEmpty();
+        assertThat(afterOn.candidates()).singleElement().satisfies(c -> assertThat(c.title()).isEqualTo("토글 확인용"));
+        verify(llm).generate(any(), any(), eq(LlmProposal.class));
     }
 
     @Test

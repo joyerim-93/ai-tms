@@ -17,3 +17,9 @@ export const recommendationJobApi = {
 export const ruleCatalogApi = {
   list: () => http('/rule-catalog'),
 }
+
+// AI 생성(LLM) 추천 on/off — 화면 토글. 서버 재기동하면 설정 파일 기본값(app.ai.llm.enabled)으로 돌아감
+export const llmSettingsApi = {
+  get: () => http('/llm-settings'),
+  update: (enabled) => http('/llm-settings', { method: 'PATCH', body: { enabled } }),
+}

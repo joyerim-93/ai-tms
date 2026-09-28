@@ -46,21 +46,20 @@ public class LlmRecommendationService implements RecommendationEngine {
 
     private final RequirementMapper requirementMapper;
     private final LlmClient llm;
-    private final boolean enabled;
+    private final LlmSettings settings;
     private final int maxCases;
 
-    public LlmRecommendationService(RequirementMapper requirementMapper, LlmClient llm,
-                                    @Value("${app.ai.llm.enabled:true}") boolean enabled,
+    public LlmRecommendationService(RequirementMapper requirementMapper, LlmClient llm, LlmSettings settings,
                                     @Value("${app.ai.llm.max-cases:5}") int maxCases) {
         this.requirementMapper = requirementMapper;
         this.llm = llm;
-        this.enabled = enabled;
+        this.settings = settings;
         this.maxCases = maxCases;
     }
 
     @Override
     public RecommendationResult recommend(Long requirementId) {
-        if (!enabled) {
+        if (!settings.isEnabled()) {
             // API 키/비용 없이도 규칙기반·RAG는 정상 동작 — 꺼져 있다는 사실을 결과 경고로 명확히 표시
             return new RecommendationResult(List.of(), List.of(DISABLED_WARNING));
         }

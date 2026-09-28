@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { recommendationJobApi, requirementApi, ruleCatalogApi } from '@/api/requirements'
+import { llmSettingsApi, recommendationJobApi, requirementApi, ruleCatalogApi } from '@/api/requirements'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/projectStore'
 import { useRoute } from 'vue-router'
@@ -8,6 +8,7 @@ import { PRIORITY, REQUIREMENT_TYPE, REVIEW_STATUS, TC_SOURCE, TECHNIQUE } from 
 import PriorityChip from '@/components/PriorityChip.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import RecommendationStatusBadge from '@/components/RecommendationStatusBadge.vue'
+import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import RepoTabs from './RepoTabs.vue'
 
 // 요구사항 원문 → 원자 요구사항(AI 분해) → 규칙/RAG/LLM 추천 TC 흐름의 입구
@@ -148,13 +149,48 @@ onMounted(async () => {
   rulesByType.value = Object.groupBy
     ? Object.groupBy(rules, (r) => r.requirementType)
     : rules.reduce((acc, r) => ((acc[r.requirementType] ??= []).push(r), acc), {})
+  await loadLlmSettings()
 })
+
+// AI 생성(LLM) 추천 on/off 토글 — 서버 메모리에만 저장되고, 재기동하면 app.ai.llm.enabled(설정 파일) 값으로 되돌아감
+const llmEnabled = ref(false)
+const llmProvider = ref('')
+const llmToggling = ref(false)
+
+async function loadLlmSettings() {
+  try {
+    const s = await llmSettingsApi.get()
+    llmEnabled.value = s.enabled
+    llmProvider.value = s.provider
+  } catch {
+    // 토글 조회 실패는 부가 기능이라 조용히 무시 — 버튼이 꺼진 상태로만 보임
+  }
+}
+
+async function toggleLlm(next) {
+  llmToggling.value = true
+  error.value = ''
+  try {
+    const s = await llmSettingsApi.update(next)
+    llmEnabled.value = s.enabled
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    llmToggling.value = false
+  }
+}
 </script>
 
 <template>
   <RepoTabs />
-  <div class="page-actions">
-    <button class="btn btn-primary" :disabled="!projectId" @click="showForm = !showForm">+ 요구사항 등록</button>
+  <div class="toolbar">
+    <label class="llm-toggle" :title="`서버 재기동하면 기본값으로 돌아갑니다 (provider: ${llmProvider || '-'})`">
+      <ToggleSwitch v-model="llmEnabled" :disabled="llmToggling" @update:model-value="toggleLlm" />
+      <span>AI 생성(LLM) 추천 사용<span class="muted small"> — provider: {{ llmProvider || '-' }}</span></span>
+    </label>
+    <div class="page-actions">
+      <button class="btn btn-primary" :disabled="!projectId" @click="showForm = !showForm">+ 요구사항 등록</button>
+    </div>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
 
@@ -300,6 +336,24 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.toolbar .page-actions {
+  margin-bottom: 0;
+}
+.llm-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
 .create-form {
   margin-bottom: var(--space-4);
 }
