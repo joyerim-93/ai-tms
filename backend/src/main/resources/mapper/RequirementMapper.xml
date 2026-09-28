@@ -60,4 +60,10 @@
                    FROM requirement WHERE project_id = #{projectId}),
                 #{title}, #{description}, #{source}, #{priority})
     </insert>
+
+    <!-- LLM 자동 분해(AI 원자 요구사항 분해) 결과 저장 -->
+    <insert id="insertAtomic" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO atomic_requirement (requirement_id, atomic_text, type, min_value, max_value, unit, conditions)
+        VALUES (#{requirementId}, #{atomicText}, #{type}, #{minValue}, #{maxValue}, #{unit}, #{conditions})
+    </insert>
 </mapper>

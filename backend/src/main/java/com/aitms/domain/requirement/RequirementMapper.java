@@ -16,6 +16,8 @@ public interface RequirementMapper {
 
     void insert(Requirement requirement);
 
+    void insertAtomic(AtomicRequirement atomic);
+
     /** 원문 요구사항의 원자 요구사항별 커버 TC (atomicRequirementId로 그룹핑) */
     List<CoveringTestCase> findCoveringTestCases(Long requirementId);
 

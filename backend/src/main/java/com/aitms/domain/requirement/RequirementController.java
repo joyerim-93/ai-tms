@@ -55,4 +55,13 @@ public class RequirementController {
     public RecommendationJob recommend(@PathVariable Long id) {
         return jobService.start(id);
     }
+
+    /**
+     * 원자 요구사항 자동 분해(LLM, 동기) — 원문 하나에 LLM 호출 1회라 잡 없이 바로 처리.
+     * 이미 원자 요구사항이 있으면 그대로 반환(재호출 안 함).
+     */
+    @PostMapping("/{id}/decompose")
+    public Requirement decompose(@PathVariable Long id) {
+        return service.decompose(id);
+    }
 }

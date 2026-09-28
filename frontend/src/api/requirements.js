@@ -7,6 +7,8 @@ export const requirementApi = {
   create: (body) => http('/requirements', { method: 'POST', body }),
   // AI 추천 요청 → 잡(RUNNING) 즉시 반환. 진행/결과는 recommendationJobApi 로 폴링
   recommend: (id) => http(`/requirements/${id}/recommend`, { method: 'POST' }),
+  // 원자 요구사항 자동 분해(LLM, 동기 — 호출 1회라 잡 없이 바로 결과). 이미 있으면 재호출 없이 그대로 반환
+  decompose: (id) => http(`/requirements/${id}/decompose`, { method: 'POST' }),
 }
 
 export const recommendationJobApi = {

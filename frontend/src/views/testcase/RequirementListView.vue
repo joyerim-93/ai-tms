@@ -112,6 +112,22 @@ async function recommend(reqId) {
   }
 }
 
+// 원자 요구사항 자동 분해(LLM) — 성공하면 목록·펼친 상세를 새로고침해서 방금 만들어진 원자 요구사항이 바로 보이게 함
+const decomposing = reactive({})
+async function decompose(reqId) {
+  decomposing[reqId] = true
+  error.value = ''
+  try {
+    await requirementApi.decompose(reqId)
+    await load()
+    if (expanded.value?.id === reqId) expanded.value = await requirementApi.get(reqId)
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    decomposing[reqId] = false
+  }
+}
+
 // 화면 진입/새로고침 시: 진행 중이던 잡은 폴링 재개, 마지막 잡이 실패면 실패 뱃지 복원
 async function restoreJobs() {
   await Promise.all(
@@ -256,9 +272,20 @@ async function toggleLlm(next) {
               <div class="detail">
                 <div class="detail-head">
                   <div class="label">원문</div>
-                  <button class="btn btn-sm btn-primary" :disabled="isActive(jobs[r.id])" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC) + AI 생성(Claude)" @click="recommend(r.id)">
-                    ✨ AI 추천 요청
-                  </button>
+                  <div class="detail-head-actions">
+                    <button
+                      v-if="!expanded.atomics.length"
+                      class="btn btn-sm"
+                      :disabled="decomposing[r.id]"
+                      title="요구사항 원문을 LLM에 보내 원자 요구사항(유형·범위·조건)으로 분해합니다. 이게 있어야 AI 추천이 동작해요."
+                      @click="decompose(r.id)"
+                    >
+                      {{ decomposing[r.id] ? '분해 중…' : '🪄 원자 요구사항 분해' }}
+                    </button>
+                    <button class="btn btn-sm btn-primary" :disabled="isActive(jobs[r.id]) || !expanded.atomics.length" title="규칙기반(규칙 카탈로그) + RAG(다른 프로젝트의 승인된 유사 TC) + AI 생성(LLM)" @click="recommend(r.id)">
+                      ✨ AI 추천 요청
+                    </button>
+                  </div>
                 </div>
                 <p class="pre raw">{{ expanded.description }}</p>
                 <div v-if="results[r.id]" class="message">
@@ -323,7 +350,7 @@ async function toggleLlm(next) {
                   </tbody>
                 </table>
                 <p v-else class="muted small">
-                  아직 분해된 원자 요구사항이 없습니다. (AI 에이전트 연동 후 자동 분해 예정)
+                  아직 분해된 원자 요구사항이 없습니다. 위 '🪄 원자 요구사항 분해' 버튼을 누르면 LLM이 원문에서 자동으로 뽑아줍니다.
                 </p>
               </div>
             </td>
@@ -384,6 +411,10 @@ tr.selected {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.detail-head-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 .raw {
   margin: 0 0 var(--space-4);
