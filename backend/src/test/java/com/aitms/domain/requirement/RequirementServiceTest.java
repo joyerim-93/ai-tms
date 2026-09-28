@@ -2,6 +2,8 @@ package com.aitms.domain.requirement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,12 +40,15 @@ class RequirementServiceTest {
 
     @Test
     void 등록하면_프로젝트내_코드가_채번되고_MANUAL로_저장된다() {
+        int before = service.findByProject(1L).size();
+
         Requirement created = service.create(new RequirementRequest(1L, "중도해지 이율", "중도해지 시 기본금리의 50% 적용", null));
 
-        assertThat(created.getReqCode()).isEqualTo("REQ-002");
+        // 프로젝트 1의 기존 샘플 코드(REQ-001, 003~005, 은행 목데이터) 중 최댓값 다음 번호로 채번됨
+        assertThat(created.getReqCode()).isEqualTo("REQ-006");
         assertThat(created.getSource()).isEqualTo(RequirementSource.MANUAL);
         assertThat(created.getPriority()).isEqualTo(Priority.MEDIUM);
-        assertThat(service.findByProject(1L)).hasSize(2);
+        assertThat(service.findByProject(1L)).hasSize(before + 1);
     }
 
 
@@ -56,8 +61,11 @@ class RequirementServiceTest {
 
     @Test
     void 프로젝트_원자요구사항_목록은_원문_코드와_함께_조회된다() {
-        assertThat(service.atomicRefs(1L)).extracting(AtomicRequirementRef::getAtomicRequirementId).containsExactly(1L, 2L, 3L);
-        assertThat(service.atomicRefs(1L).get(0).getReqCode()).isEqualTo("REQ-001");
+        // 프로젝트 1: REQ-001(3) + 은행 목데이터 REQ-003~005(4+3+4) = 14건, req_code 순 정렬
+        List<AtomicRequirementRef> refs = service.atomicRefs(1L);
+        assertThat(refs).hasSize(14);
+        assertThat(refs).extracting(AtomicRequirementRef::getAtomicRequirementId).startsWith(1L, 2L, 3L);
+        assertThat(refs.get(0).getReqCode()).isEqualTo("REQ-001");
         assertThat(service.atomicRefs(2L)).singleElement().satisfies(a -> assertThat(a.getAtomicRequirementId()).isEqualTo(4L));
     }
 }
