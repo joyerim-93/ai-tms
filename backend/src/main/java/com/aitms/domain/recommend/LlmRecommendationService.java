@@ -157,7 +157,7 @@ public class LlmRecommendationService implements RecommendationEngine {
     private static String reason(Exception e) {
         String type = e.getClass().getSimpleName();
         if (type.equals("UnauthorizedException") || type.equals("PermissionDeniedException")) {
-            return "Claude API 인증 정보가 없거나 올바르지 않습니다 (ANTHROPIC_API_KEY 설정 확인)";
+            return "LLM API 인증 정보가 없거나 올바르지 않습니다 (app.ai.llm.provider에 맞는 API 키 설정 확인)";
         }
         String m = e.getMessage();
         if (m == null || m.isBlank()) {

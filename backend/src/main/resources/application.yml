@@ -45,8 +45,11 @@ app:
   ai:
     llm:
       enabled: false                # 비용 때문에 꺼둠. true + API 키를 설정하면 AI 생성(LLM) 추천도 실행 (꺼져 있어도 규칙기반·RAG는 정상 동작)
+      provider: anthropic           # anthropic(Claude, 기본) | openai — LlmClient 구현을 이걸로 선택(AnthropicLlmClient/OpenAiLlmClient)
       model: claude-opus-5
       max-cases: 5                  # 요구사항 1건당 제안할 최대 TC 수
-      api-key: ${ANTHROPIC_API_KEY:}  # 비우면 SDK 기본 인증(ANTHROPIC_API_KEY 환경변수 / ant auth login 프로필) 사용
+      api-key: ${ANTHROPIC_API_KEY:}  # provider=anthropic. 비우면 SDK 기본 인증(ANTHROPIC_API_KEY 환경변수) 사용
+      openai-model: gpt-4o-mini
+      openai-api-key: ${OPENAI_API_KEY:}  # provider=openai. 비우면 OPENAI_API_KEY 환경변수 사용
   cors:
     allowed-origins: http://localhost:5173

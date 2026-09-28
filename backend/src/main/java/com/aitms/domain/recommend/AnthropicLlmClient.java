@@ -3,6 +3,7 @@ package com.aitms.domain.recommend;
 import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import com.anthropic.client.AnthropicClient;
@@ -15,8 +16,10 @@ import com.anthropic.models.messages.StructuredMessageCreateParams;
 /**
  * Claude API 호출 (Anthropic Java SDK). 클라이언트는 첫 호출 때 만들어 인증 정보가 없어도 앱은 기동됨.
  * 인증: app.ai.llm.api-key 또는 SDK 기본(ANTHROPIC_API_KEY 환경변수 / ant auth login 프로필).
+ * app.ai.llm.provider=openai면 대신 {@link OpenAiLlmClient}가 뜬다(둘 중 하나만 빈으로 등록됨).
  */
 @Component
+@ConditionalOnProperty(prefix = "app.ai.llm", name = "provider", havingValue = "anthropic", matchIfMissing = true)
 public class AnthropicLlmClient implements LlmClient {
 
     private static final long MAX_TOKENS = 16000L;
